@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Security {
+  id                 String          @id @default(cuid())
+  isin               String?         @unique
+  ticker             String
+  name               String
+  assetType          String
+  exchange           String?
+  tradingCurrency    String
+  marketDataTicker   String?
+  marketDataProvider String          @default("MOCK")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  transactions       Transaction[]
+  aliases            SecurityAlias[]
+  quote              PriceQuote?
+
+  @@index([ticker])
+  @@index([assetType])
+}
+
+model BrokerAccount {
+  id              String          @id @default(cuid())
+  brokerName      String
+  accountName     String
+  baseCurrency    String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  transactions    Transaction[]
+  securityAliases SecurityAlias[]
+
+  @@unique([brokerName, accountName])
+}
+
+model SecurityAlias {
+  id               String         @id @default(cuid())
+  securityId       String
+  brokerAccountId  String?
+  source           String
+  brokerSymbol     String
+  sourceSecurityId String?
+  security         Security       @relation(fields: [securityId], references: [id], onDelete: Cascade)
+  brokerAccount    BrokerAccount? @relation(fields: [brokerAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([source, brokerSymbol])
+  @@index([securityId])
+}
+
+model Transaction {
+  id                  String        @id @default(cuid())
+  securityId          String?
+  brokerAccountId     String
+  type                String
+  timestamp           DateTime
+  quantity            Decimal?
+  executionPrice      Decimal?
+  transactionCurrency String
+  fxRateToChf         Decimal       @default(1)
+  fee                 Decimal       @default(0)
+  feeChf              Decimal       @default(0)
+  totalValue          Decimal
+  totalValueChf       Decimal
+  notes               String?
+  importSource        String        @default("MANUAL")
+  externalId          String?
+  importFingerprint   String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  security            Security?     @relation(fields: [securityId], references: [id], onDelete: SetNull)
+  brokerAccount       BrokerAccount @relation(fields: [brokerAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([brokerAccountId, importSource, externalId])
+  @@unique([brokerAccountId, importFingerprint])
+  @@index([timestamp])
+  @@index([securityId, timestamp])
+  @@index([brokerAccountId, timestamp])
+}
+
+model PriceQuote {
+  id            String   @id @default(cuid())
+  securityId    String   @unique
+  price         Decimal
+  previousClose Decimal?
+  currency      String
+  fxRateToChf   Decimal
+  provider      String   @default("MOCK")
+  quotedAt      DateTime
+  security      Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+
+  @@index([quotedAt])
+}
+
+model PortfolioSnapshot {
+  id                 String   @id @default(cuid())
+  timestamp          DateTime @unique
+  portfolioValueChf  Decimal
+  investedCapitalChf Decimal
+  cashChf            Decimal
+  unrealizedPnlChf   Decimal
+  realizedPnlChf     Decimal
+
+  @@index([timestamp])
+}

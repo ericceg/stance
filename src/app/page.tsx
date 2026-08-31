@@ -1,69 +1,54 @@
-import Image from "next/image";
+import Link from "next/link";
+import { ArrowUpRight, CircleCheck, Clock3, RefreshCw, TriangleAlert } from "lucide-react";
+import { AllocationChart } from "@/components/allocation-chart";
+import { AppShell } from "@/components/app-shell";
+import { HoldingsTable } from "@/components/holdings-table";
+import { PortfolioChart } from "@/components/portfolio-chart";
+import { formatChf, formatPercent, toneForValue } from "@/lib/format";
+import { getDashboardData } from "@/lib/portfolio/service";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const data = await getDashboardData();
+  const updatedAt = data.updatedAt ? new Date(data.updatedAt) : null;
+  const quoteLabel = updatedAt ? new Intl.DateTimeFormat("en-CH", { hour: "2-digit", minute: "2-digit" }).format(updatedAt) : "Unavailable";
+  const todayLabel = new Intl.DateTimeFormat("en-CH", { weekday: "long", day: "2-digit", month: "long" }).format(new Date()).toUpperCase();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <AppShell active="Overview" eyebrow={todayLabel} issueCount={data.issues.length} title="Portfolio overview">
+      {data.issues.length > 0 ? (
+        <Link className="issue-banner" href="/data-issues"><TriangleAlert aria-hidden="true" /><span><strong>{data.issues.length} data {data.issues.length === 1 ? "issue needs" : "issues need"} attention</strong><small>Review missing prices, FX rates, or identifiers before relying on totals.</small></span><ArrowUpRight aria-hidden="true" /></Link>
+      ) : (
+        <div className="quality-banner"><CircleCheck aria-hidden="true" /><span>All positions have a current price, CHF rate, and canonical identifier.</span></div>
+      )}
+
+      <section className="overview-grid">
+        <div className="total-card">
+          <div className="total-card-head">
+            <div><p>Total portfolio</p><strong>{formatChf(data.summary.portfolioValueChf)}</strong><span>Holdings + available cash</span></div>
+            <div className="quote-status"><RefreshCw aria-hidden="true" /><span>Mock quotes<small>Updated {quoteLabel}</small></span></div>
+          </div>
+          <div className="metric-grid">
+            <div><span>Today</span><strong className={toneForValue(data.summary.todayPnlChf)}>{formatChf(data.summary.todayPnlChf, { signed: true })}</strong><small className={toneForValue(data.summary.todayReturnPercent)}>{formatPercent(data.summary.todayReturnPercent, { signed: true })}</small></div>
+            <div><span>Total P&amp;L</span><strong className={toneForValue(data.summary.totalPnlChf)}>{formatChf(data.summary.totalPnlChf, { signed: true })}</strong><small className={toneForValue(data.summary.totalReturnPercent)}>{formatPercent(data.summary.totalReturnPercent, { signed: true })}</small></div>
+            <div><span>Invested</span><strong>{formatChf(data.summary.investedCapitalChf)}</strong><small>Remaining cost basis</small></div>
+            <div><span>Cash</span><strong>{formatChf(data.summary.cashChf)}</strong><small>{formatPercent((data.summary.cashChf / data.summary.portfolioValueChf) * 100)} of portfolio</small></div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        <AllocationChart allocation={data.allocation} total={data.summary.portfolioValueChf} />
+      </section>
+
+      <section className="secondary-metrics" aria-label="Portfolio accounting summary">
+        <div><span>Market value</span><strong>{formatChf(data.summary.marketValueChf)}</strong></div>
+        <div><span>Net contributions</span><strong>{formatChf(data.summary.netContributionsChf)}</strong></div>
+        <div><span>Unrealized P&amp;L</span><strong className={toneForValue(data.summary.unrealizedPnlChf)}>{formatChf(data.summary.unrealizedPnlChf, { signed: true })}</strong></div>
+        <div><span>Realized P&amp;L</span><strong className={toneForValue(data.summary.realizedPnlChf)}>{formatChf(data.summary.realizedPnlChf, { signed: true })}</strong></div>
+        <div className="method-note"><Clock3 aria-hidden="true" /><span><strong>Average-cost accounting</strong><small>Fees included · CHF conversion stored per transaction</small></span></div>
+      </section>
+
+      <PortfolioChart snapshots={data.snapshots} />
+      <HoldingsTable positions={data.positions} />
+    </AppShell>
   );
 }

@@ -1,36 +1,112 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PersPort
 
-## Getting Started
+PersPort is a lightweight, single-user investment portfolio tracker with CHF as its reporting currency. Milestone 1 is deliberately local-first: it uses a SQLite database, fictional seed data, and mock prices while keeping the accounting core independent from the UI and future broker or market-data integrations.
 
-First, run the development server:
+> All repository data is fictional. Local databases, environment files, uploaded CSVs, account identifiers, and broker credentials are excluded from Git.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## What works in Milestone 1
+
+- Transaction-led portfolio accounting for buys, sells, dividends, deposits, withdrawals, and fees
+- Weighted-average cost basis, partial and full sells, realized/unrealized P&L, cash, and contribution-aware absolute P&L
+- Original-currency and stored CHF values on every transaction
+- Aggregated holdings with broker-level breakdowns
+- Sortable holdings table, allocation views, seeded snapshot chart, and responsive dark-mode UI
+- Position detail pages with identification, pricing, broker allocation, and transaction history
+- Manual transaction creation and deletion with server-side validation
+- Data-quality checks for missing prices, FX rates, ISINs, invalid transactions, and oversold positions
+- Replaceable, read-only `BrokerProvider` and `MarketDataProvider` contracts
+- Unit tests covering the important accounting paths
+
+## Architecture
+
+The App Router renders portfolio reads on the server. UI mutations use Server Actions, so the browser never receives database access or secrets. Prisma is the typed persistence boundary; SQLite is used for the local version and can later be replaced by PostgreSQL without changing the accounting engine.
+
+```text
+Prisma / SQLite
+      │
+      ▼
+portfolio service ── provider interfaces (broker / market data)
+      │
+      ▼
+pure accounting engine
+      │
+      ▼
+server-rendered routes + focused client charts/tables/forms
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Positions are never manually stored. They are derived in timestamp order from transactions. A buy adds its fee to cost basis; a sell releases weighted-average cost and realizes the difference after fees. Deposits and withdrawals change contributions and cash but never investment P&L. Materially invalid rows, such as an oversell, are excluded and surfaced as a data issue instead of being silently guessed.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database schema
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The complete schema is in [`prisma/schema.prisma`](./prisma/schema.prisma).
 
-## Learn More
+| Model | Purpose |
+| --- | --- |
+| `Security` | Canonical security identity, preferably by ISIN, plus exchange/currency and editable provider ticker fields |
+| `SecurityAlias` | Broker symbols and source IDs mapped to the canonical security |
+| `BrokerAccount` | Broker/account identity and base currency |
+| `Transaction` | Immutable accounting inputs with local and CHF values, import source, and duplicate-detection fields |
+| `PriceQuote` | Last known mock/current price, previous close, CHF rate, provider, and timestamp |
+| `PortfolioSnapshot` | Periodic CHF portfolio value, cost, cash, and P&L totals |
 
-To learn more about Next.js, take a look at the following resources:
+Transactions have indexes for account/security timelines. Imported records can be deduplicated by broker/source external ID or by an importer-generated fingerprint.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```text
+prisma/
+  migrations/             committed database migrations
+  schema.prisma           relational data model
+  seed.ts                 fictional accounts, trades, quotes, and snapshots
+scripts/
+  ensure-db.mjs           creates the ignored local SQLite file when absent
+src/
+  app/                    App Router pages and transaction Server Actions
+  components/             dashboard, charts, tables, shell, and forms
+  lib/
+    portfolio/            pure accounting, types, service, and tests
+    providers/            replaceable broker and market-data contracts
+    db.ts                 server-only Prisma client
+```
 
-## Deploy on Vercel
+## Run locally
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Requirements: Node.js 20+ and npm.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+cp .env.example .env
+npm run db:setup
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). `db:setup` creates the ignored database, applies committed migrations, and loads fictional sample data. Re-running `npm run db:seed` resets the local database to that fictional dataset.
+
+Useful commands:
+
+```bash
+npm test          # accounting unit tests
+npm run lint      # ESLint
+npm run build     # production build
+npm run check     # lint + tests + build
+npm run db:studio # inspect the local data
+```
+
+## Environment and repository safety
+
+Copy `.env.example` to `.env`. Never put a real key in the example file or in a `NEXT_PUBLIC_*` variable. The planned Trading 212 key remains server-side and the provider contract intentionally has no trade-placement method.
+
+The `.gitignore` excludes `.env`, SQLite files, private/upload directories, portfolio CSV exports, logs, and build output. Before publishing screenshots, reset with `npm run db:seed` so only fictional data is visible.
+
+## Next milestone
+
+Milestone 2 will implement the `MarketDataProvider` boundary with replaceable quote and FX sources, a persisted freshness-aware price cache, bulk quote refresh, last-known-price fallback, and configurable dashboard polling. Historical security-price charts, transaction editing, security/ticker editing and merging, DEGIRO CSV preview/import, Trading 212 sync, and time-/money-weighted returns remain intentionally out of scope for this first milestone.
+
+## Assumptions
+
+- One trusted local user; no authentication or tenancy
+- CHF is the only reporting currency
+- Weighted average cost is used for position accounting
+- Transaction CHF values preserve the FX rate at the time of the transaction; current valuations use the quote's current CHF rate
+- Dividends are included in realized P&L, while deposits and withdrawals are external cash flows
+- SQLite is for local use. A Vercel deployment should switch `DATABASE_URL` to PostgreSQL or another persistent hosted database because serverless local files are not durable

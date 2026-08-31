@@ -32,6 +32,16 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local databases and private imports
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+/private/
+/uploads/
+*.portfolio.csv
 
 # vercel
 .vercel
