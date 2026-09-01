@@ -4,9 +4,9 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveImportedSecurity } from "@/lib/import/security";
+import { localToAccountRate } from "@/lib/import/trading212-fx";
 import {
   Trading212Provider,
-  type Trading212HistoricalOrder,
   type Trading212Position,
 } from "@/lib/providers/broker";
 import { fxRateProvider, historicalFxKey, type HistoricalFxRequest } from "@/lib/providers/fx";
@@ -25,25 +25,12 @@ function fingerprint(parts: Array<string | number | null | undefined>) {
   return createHash("sha256").update(parts.map((part) => part ?? "").join("|")).digest("hex");
 }
 
-function positiveRate(value: number | null | undefined) {
-  return value != null && Number.isFinite(value) && value > 0 ? value : null;
-}
-
 function transactionType(type: string) {
   if (type === "WITHDRAW") return "WITHDRAWAL" as const;
   if (type === "DEPOSIT") return "DEPOSIT" as const;
   if (type === "FEE") return "FEE" as const;
   if (type === "INTEREST_ON_FREE_CASH" || type === "LENDING_INTEREST") return "DIVIDEND" as const;
   return null;
-}
-
-function localToAccountRate(order: Trading212HistoricalOrder, fill: NonNullable<Trading212HistoricalOrder["fill"]>) {
-  const gross = Math.abs(fill.price * fill.quantity);
-  const explicit = positiveRate(fill.walletImpact.fxRate);
-  if (explicit) return explicit;
-  if (order.order.instrument.currency === fill.walletImpact.currency) return 1;
-  const derived = gross > 0 ? Math.abs(fill.walletImpact.netValue) / gross : 0;
-  return derived > 0 ? derived : null;
 }
 
 async function accountForSync(
@@ -167,10 +154,10 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
     const brokerAccount = await accountForSync(tx, String(account.id), accountCurrency);
     const existingTransactions = await tx.transaction.findMany({
       where: { brokerAccountId: brokerAccount.id, importSource: "TRADING212" },
-      select: { externalId: true, importFingerprint: true },
+      select: { id: true, externalId: true, importFingerprint: true },
     });
-    const existingExternalIds = new Set(existingTransactions.flatMap((item) => item.externalId ? [item.externalId] : []));
-    const existingFingerprints = new Set(existingTransactions.flatMap((item) => item.importFingerprint ? [item.importFingerprint] : []));
+    const existingByExternalId = new Map(existingTransactions.flatMap((item) => item.externalId ? [[item.externalId, item] as const] : []));
+    const existingByFingerprint = new Map(existingTransactions.flatMap((item) => item.importFingerprint ? [[item.importFingerprint, item] as const] : []));
 
     for (const order of orders) {
       const fill = order.fill;
@@ -190,10 +177,6 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
       const accountToChfAtExecution = historicalRate(accountCurrency, occurredAt);
       const externalId = `fill:${fill.id}`;
       const importFingerprint = fingerprint([externalId, order.order.side, fill.filledAt, quantity, executionPrice]);
-      if (existingExternalIds.has(externalId) || existingFingerprints.has(importFingerprint)) {
-        duplicates += 1;
-        continue;
-      }
       const security = await resolveImportedSecurity(tx, {
         source: "TRADING212",
         brokerAccountId: brokerAccount.id,
@@ -213,8 +196,7 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
         return total + amount * historicalRate(tax.currency, validDate(tax.chargedAt ?? "") ?? occurredAt);
       }, 0);
       const totalValue = quantity * executionPrice;
-      await tx.transaction.create({
-        data: {
+      const transactionData = {
           brokerAccountId: brokerAccount.id,
           securityId: security.id,
           type: order.order.side,
@@ -231,11 +213,17 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
           importSource: "TRADING212",
           externalId,
           importFingerprint,
-        },
-      });
-      existingExternalIds.add(externalId);
-      existingFingerprints.add(importFingerprint);
-      imported += 1;
+      };
+      const existing = existingByExternalId.get(externalId) ?? existingByFingerprint.get(importFingerprint);
+      if (existing) {
+        await tx.transaction.update({ where: { id: existing.id }, data: transactionData });
+        duplicates += 1;
+      } else {
+        const created = await tx.transaction.create({ data: transactionData });
+        existingByExternalId.set(externalId, created);
+        existingByFingerprint.set(importFingerprint, created);
+        imported += 1;
+      }
     }
 
     for (const dividend of dividends) {
@@ -248,7 +236,7 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
       const externalId = dividend.reference.trim()
         ? `dividend:${dividend.reference}`
         : `dividend:${importFingerprint}`;
-      if (existingExternalIds.has(externalId) || existingFingerprints.has(importFingerprint)) {
+      if (existingByExternalId.has(externalId) || existingByFingerprint.has(importFingerprint)) {
         duplicates += 1;
         continue;
       }
@@ -284,8 +272,8 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
           importFingerprint,
         },
       });
-      existingExternalIds.add(externalId);
-      existingFingerprints.add(importFingerprint);
+      existingByExternalId.set(externalId, { id: "", externalId, importFingerprint });
+      existingByFingerprint.set(importFingerprint, { id: "", externalId, importFingerprint });
       imported += 1;
     }
 
@@ -304,7 +292,7 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
       const externalId = cash.reference.trim()
         ? `cash:${cash.reference}`
         : `cash:${importFingerprint}`;
-      if (existingExternalIds.has(externalId) || existingFingerprints.has(importFingerprint)) {
+      if (existingByExternalId.has(externalId) || existingByFingerprint.has(importFingerprint)) {
         duplicates += 1;
         continue;
       }
@@ -329,8 +317,8 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
           importFingerprint,
         },
       });
-      existingExternalIds.add(externalId);
-      existingFingerprints.add(importFingerprint);
+      existingByExternalId.set(externalId, { id: "", externalId, importFingerprint });
+      existingByFingerprint.set(importFingerprint, { id: "", externalId, importFingerprint });
       imported += 1;
     }
 
