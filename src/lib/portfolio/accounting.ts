@@ -227,7 +227,11 @@ export function calculatePortfolio(input: {
     (total, transaction) => total + (transaction.type === "FEE" && transaction.securityId === null ? transaction.totalValueChf : 0),
     0,
   );
-  const realizedPnlChf = positions.reduce((total, position) => total + position.realizedPnlChf, 0) - portfolioLevelFeesChf;
+  const portfolioLevelIncomeChf = validTransactions.reduce(
+    (total, transaction) => total + (transaction.type === "DIVIDEND" && transaction.securityId === null ? transaction.totalValueChf - transaction.feeChf : 0),
+    0,
+  );
+  const realizedPnlChf = positions.reduce((total, position) => total + position.realizedPnlChf, 0) + portfolioLevelIncomeChf - portfolioLevelFeesChf;
   const totalPnlChf = portfolioValueChf - netContributionsChf;
   const todayPnlChf = positions.reduce((total, position) => total + (position.todayPnlChf ?? 0), 0);
   const priorValue = portfolioValueChf - todayPnlChf;

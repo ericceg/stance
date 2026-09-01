@@ -14,7 +14,7 @@ const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/#holdings", label: "Holdings", icon: WalletCards },
   { href: "/transactions", label: "Transactions", icon: Landmark },
-  { href: "/import", label: "Import", icon: ArrowDownToLine, disabled: true },
+  { href: "/import", label: "Import", icon: ArrowDownToLine },
 ];
 
 export function AppShell({
@@ -39,16 +39,10 @@ export function AppShell({
         </Link>
 
         <nav className="sidebar-nav" aria-label="Primary navigation">
-          {navigation.map(({ href, label, icon: Icon, disabled }) => (
-            disabled ? (
-              <span className="nav-item is-disabled" key={label} aria-disabled="true" title="Available in Milestone 3">
-                <Icon aria-hidden="true" />{label}<small>Soon</small>
-              </span>
-            ) : (
-              <Link className={`nav-item ${active === label ? "is-active" : ""}`} href={href} key={label}>
-                <Icon aria-hidden="true" />{label}
-              </Link>
-            )
+          {navigation.map(({ href, label, icon: Icon }) => (
+            <Link className={`nav-item ${active === label ? "is-active" : ""}`} href={href} key={label}>
+              <Icon aria-hidden="true" />{label}
+            </Link>
           ))}
         </nav>
 
@@ -68,7 +62,7 @@ export function AppShell({
           <Link className="primary-button" href="/transactions/new"><Plus aria-hidden="true" />Transaction</Link>
         </header>
         <nav className="mobile-nav" aria-label="Mobile navigation">
-          {navigation.filter((item) => !item.disabled).map(({ href, label, icon: Icon }) => (
+          {navigation.map(({ href, label, icon: Icon }) => (
             <Link className={active === label ? "is-active" : ""} href={href} key={label}><Icon aria-hidden="true" />{label}</Link>
           ))}
         </nav>

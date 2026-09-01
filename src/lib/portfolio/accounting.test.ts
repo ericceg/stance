@@ -87,6 +87,13 @@ describe("average-cost accounting", () => {
     expect(result.totalPnlChf).toBe(0);
   });
 
+  it("counts account-level interest as realized income", () => {
+    const interest = transaction({ id: "interest", type: "DIVIDEND", securityId: null, totalValue: 12, totalValueChf: 12 });
+    const result = calculatePortfolio({ transactions: [interest], securities: [], brokerAccounts: [accountA], quotes: [] });
+    expect(result.cashChf).toBe(12);
+    expect(result.realizedPnlChf).toBe(12);
+  });
+
   it("uses stored transaction FX for cost and current FX for market value", () => {
     const usdSecurity = { ...security, tradingCurrency: "USD" };
     const result = calculatePortfolio({

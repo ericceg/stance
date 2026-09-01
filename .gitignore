@@ -41,6 +41,7 @@ yarn-error.log*
 *.db-wal
 /private/
 /uploads/
+/example_inputs/
 *.portfolio.csv
 
 # vercel

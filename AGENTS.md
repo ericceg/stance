@@ -1,3 +1,7 @@
+## Working agreements
+
+- Create cohesive, verified Git commits autonomously when project changes are ready; do not wait for the user to request a commit.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

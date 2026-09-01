@@ -1,10 +1,10 @@
 # PersPort
 
-PersPort is a lightweight, single-user investment portfolio tracker with CHF as its reporting currency. Milestone 1 is deliberately local-first: it uses a SQLite database, fictional seed data, and mock prices while keeping the accounting core independent from the UI and future broker or market-data integrations.
+PersPort is a lightweight, single-user investment portfolio tracker with CHF as its reporting currency. It is local-first: SQLite holds the portfolio ledger, broker credentials remain server-side, and imported statements are parsed without being retained on disk.
 
 > All repository data is fictional. Local databases, environment files, uploaded CSVs, account identifiers, and broker credentials are excluded from Git.
 
-## What works in Milestone 1
+## What works
 
 - Transaction-led portfolio accounting for buys, sells, dividends, deposits, withdrawals, and fees
 - Weighted-average cost basis, partial and full sells, realized/unrealized P&L, cash, and contribution-aware absolute P&L
@@ -15,6 +15,9 @@ PersPort is a lightweight, single-user investment portfolio tracker with CHF as 
 - Manual transaction creation and deletion with server-side validation
 - Data-quality checks for missing prices, FX rates, ISINs, invalid transactions, and oversold positions
 - Replaceable, read-only `BrokerProvider` and `MarketDataProvider` contracts
+- Read-only Trading 212 sync for order fills, dividends, cash movements, open positions, and current prices
+- DEGIRO Transaction and Account statement CSV preview/import with localized-number support
+- Idempotent broker ingestion using external IDs and stable row fingerprints
 - Unit tests covering the important accounting paths
 
 ## Architecture
@@ -65,6 +68,7 @@ src/
   components/             dashboard, charts, tables, shell, and forms
   lib/
     portfolio/            pure accounting, types, service, and tests
+    import/               DEGIRO parsing/import and Trading 212 synchronization
     providers/            replaceable broker and market-data contracts
     db.ts                 server-only Prisma client
 ```
@@ -94,13 +98,30 @@ npm run db:studio # inspect the local data
 
 ## Environment and repository safety
 
-Copy `.env.example` to `.env`. Never put a real key in the example file or in a `NEXT_PUBLIC_*` variable. The planned Trading 212 key remains server-side and the provider contract intentionally has no trade-placement method.
+Copy `.env.example` to `.env`. Never put a real key in the example file or in a `NEXT_PUBLIC_*` variable. Trading 212 credentials remain server-side and the provider contract intentionally has no trade-placement method.
+
+### Trading 212 sync
+
+1. In Trading 212, open **Settings → API (Beta)** and generate a key pair with read access to account data, portfolio, and history. Do not grant order permissions to PersPort.
+2. Put the pair in `.env` as `TRADING212_API_KEY` and `TRADING212_API_SECRET`. Set `TRADING212_ENVIRONMENT` to `live` or `demo`.
+3. Restart the development server, open **Import**, and select **Sync now**. For a non-CHF account, enter the account-currency/CHF conversion rate requested by the form.
+
+The sync imports completed trade fills, paid dividends, deposits, withdrawals, account fees, and interest. Internal transfers and unsupported corporate-action fills are deliberately skipped. Open positions also refresh Trading 212-backed current prices. Re-running sync is safe because imported records retain their Trading 212 references.
+
+### DEGIRO import
+
+Export either report from DEGIRO’s Inbox in CSV format:
+
+- **Transaction statement** for buys, sells, execution prices, and transaction fees
+- **Account statement** for deposits, withdrawals, dividends, interest, withholding tax, and other fees
+
+Open **Import**, choose the DEGIRO account and CSV, review the local preview, then import. Trade-settlement cash rows in Account statements are ignored to avoid double-counting trades. If the account base currency is not CHF, supply its CHF rate; transaction statements that already contain CHF values use their row-specific conversion instead. The uploaded file is never saved, and stable fingerprints make overlapping exports safe to import.
 
 The `.gitignore` excludes `.env`, SQLite files, private/upload directories, portfolio CSV exports, logs, and build output. Before publishing screenshots, reset with `npm run db:seed` so only fictional data is visible.
 
 ## Next milestone
 
-Milestone 2 will implement the `MarketDataProvider` boundary with replaceable quote and FX sources, a persisted freshness-aware price cache, bulk quote refresh, last-known-price fallback, and configurable dashboard polling. Historical security-price charts, transaction editing, security/ticker editing and merging, DEGIRO CSV preview/import, Trading 212 sync, and time-/money-weighted returns remain intentionally out of scope for this first milestone.
+The next work is a replaceable live market-data and historical-FX source for holdings that are not priced by Trading 212, plus security/ticker editing and merging, transaction editing, historical security charts, and time-/money-weighted returns.
 
 ## Assumptions
 
