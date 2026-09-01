@@ -16,16 +16,10 @@ export interface Trading212SyncState {
   report?: Trading212SyncReport;
 }
 
-const optionalRate = z.preprocess(
-  (value) => value === "" || value === null ? undefined : Number(value),
-  z.number().positive("The CHF rate must be positive.").optional(),
-);
-
 const degiroFieldsSchema = z.object({
   brokerAccountId: z.string().min(1),
   accountName: z.string().trim().min(1).max(80),
   baseCurrency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
-  accountToChfRate: optionalRate,
 });
 
 export async function importDegiroAction(
@@ -36,7 +30,6 @@ export async function importDegiroAction(
     brokerAccountId: formData.get("brokerAccountId"),
     accountName: formData.get("accountName") || "Personal",
     baseCurrency: formData.get("baseCurrency") || "CHF",
-    accountToChfRate: formData.get("accountToChfRate"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check the DEGIRO account details." };
@@ -65,7 +58,6 @@ export async function importDegiroAction(
     const report = await importDegiroCsv({
       brokerAccountId,
       csv: await file.text(),
-      accountToChfRate: parsed.data.accountToChfRate,
     });
     revalidatePath("/");
     revalidatePath("/transactions");
@@ -78,17 +70,14 @@ export async function importDegiroAction(
   }
 }
 
-const trading212FieldsSchema = z.object({ accountToChfRate: optionalRate });
-
 export async function syncTrading212Action(
   _previousState: Trading212SyncState,
-  formData: FormData,
+  _formData: FormData,
 ): Promise<Trading212SyncState> {
-  const parsed = trading212FieldsSchema.safeParse({ accountToChfRate: formData.get("accountToChfRate") });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the CHF rate." };
-
+  void _previousState;
+  void _formData;
   try {
-    const report = await syncTrading212({ accountToChfRate: parsed.data.accountToChfRate });
+    const report = await syncTrading212();
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");

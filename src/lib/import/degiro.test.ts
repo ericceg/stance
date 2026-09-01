@@ -42,11 +42,11 @@ describe("DEGIRO CSV parser", () => {
       '"05-01-2026","09:00","05-01-2026","","","Exchange Connection Fee","","EUR","-2.5","EUR","959.5",""',
     ].join("\n");
 
-    const result = parseDegiroCsv(csv, { accountBaseCurrency: "EUR", accountToChfRate: 0.94 });
+    const result = parseDegiroCsv(csv, { accountBaseCurrency: "EUR" });
     expect(result.kind).toBe("account");
     expect(result.rows.map((row) => row.type)).toEqual(["DEPOSIT", "DIVIDEND", "FEE"]);
     expect(result.ignoredRows).toBe(1);
-    expect(result.rows[0].totalValueChf).toBe(940);
+    expect(result.rows[0].totalValueChf).toBeNull();
   });
 
   it("extracts priced trades and their CHF conversion from an account statement", () => {

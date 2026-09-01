@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { TRANSACTION_TYPES } from "@/lib/portfolio/types";
+import { fxRateProvider, historicalFxKey } from "@/lib/providers/fx";
 
 export interface TransactionFormState {
   error?: string;
@@ -25,7 +26,6 @@ const transactionSchema = z.object({
   executionPrice: optionalPositiveNumber,
   totalValue: optionalPositiveNumber,
   transactionCurrency: z.string().trim().length(3, "Use a three-letter currency code.").transform((value) => value.toUpperCase()),
-  fxRateToChf: z.preprocess((value) => Number(value), z.number().positive("FX rate must be positive.")),
   fee: z.preprocess((value) => value === "" ? 0 : Number(value), z.number().min(0, "Fee cannot be negative.")),
   notes: z.string().trim().max(500).optional(),
 }).superRefine((value, context) => {
@@ -55,29 +55,35 @@ export async function createTransactionAction(
   const totalValue = input.type === "BUY" || input.type === "SELL"
     ? input.quantity! * input.executionPrice!
     : input.totalValue!;
+  const timestamp = new Date(`${input.timestamp}T12:00:00.000Z`);
 
   try {
+    const rates = await fxRateProvider.getHistoricalRatesToChf([
+      { currency: input.transactionCurrency, date: timestamp },
+    ]);
+    const fxRateToChf = rates.get(historicalFxKey(input.transactionCurrency, timestamp));
+    if (!fxRateToChf) throw new Error(`No automatic ${input.transactionCurrency}/CHF rate is available for ${input.timestamp}.`);
     await prisma.transaction.create({
       data: {
         brokerAccountId: input.brokerAccountId,
         securityId: input.securityId || null,
         type: input.type,
-        timestamp: new Date(`${input.timestamp}T12:00:00.000Z`),
+        timestamp,
         quantity: input.quantity,
         executionPrice: input.executionPrice,
         transactionCurrency: input.transactionCurrency,
-        fxRateToChf: input.fxRateToChf,
+        fxRateToChf,
         fee: input.fee,
-        feeChf: input.fee * input.fxRateToChf,
+        feeChf: input.fee * fxRateToChf,
         totalValue,
-        totalValueChf: totalValue * input.fxRateToChf,
+        totalValueChf: totalValue * fxRateToChf,
         notes: input.notes || null,
         importSource: "MANUAL",
       },
     });
   } catch (error) {
     console.error("Failed to create transaction", error);
-    return { error: "The transaction could not be saved. No portfolio data was changed." };
+    return { error: error instanceof Error ? error.message : "The transaction could not be saved. No portfolio data was changed." };
   }
 
   revalidatePath("/");

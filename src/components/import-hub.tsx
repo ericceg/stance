@@ -38,7 +38,7 @@ function Trading212Sync({ configured, lastSync }: { configured: boolean; lastSyn
         <div><p>Live connection</p><h2>Trading 212</h2></div>
         <span className={configured ? "connection-state is-ready" : "connection-state"}>{configured ? "Ready" : "Setup needed"}</span>
       </div>
-      <p className="integration-copy">Pull completed order fills, dividends, deposits, withdrawals, fees, open positions, and current prices through Trading 212&apos;s read-only API.</p>
+      <p className="integration-copy">Pull completed order fills, dividends, deposits, withdrawals, fees, open positions, and current prices through Trading 212&apos;s read-only API. CHF conversion is automatic.</p>
       {!configured ? (
         <div className="setup-callout">
           <strong>Add your read-only key pair to <code>.env</code></strong>
@@ -52,10 +52,6 @@ function Trading212Sync({ configured, lastSync }: { configured: boolean; lastSyn
         </ResultBanner>
       ) : null}
       <form action={action} className="integration-form">
-        <div className="field">
-          <label htmlFor="trading212-rate">Account currency/CHF rate <span>Only needed for non-CHF accounts</span></label>
-          <input id="trading212-rate" inputMode="decimal" min="0" name="accountToChfRate" placeholder="e.g. 0.9400" step="any" type="number" />
-        </div>
         <button className="primary-button" disabled={pending || !configured} type="submit">
           {pending ? <><LoaderCircle className="spin" />Synchronizing…</> : <><RefreshCw />Sync now</>}
         </button>
@@ -74,7 +70,6 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
   const selectedAccount = accounts.find((account) => account.id === accountId);
   const [newBaseCurrency, setNewBaseCurrency] = useState("CHF");
   const baseCurrency = selectedAccount?.baseCurrency ?? newBaseCurrency;
-  const [rate, setRate] = useState(baseCurrency === "CHF" ? "1" : "");
   const [fileName, setFileName] = useState("");
   const [fileText, setFileText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -83,22 +78,13 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
     if (!fileText) return { result: null, error: null };
     try {
       return {
-        result: parseDegiroCsv(fileText, {
-          accountBaseCurrency: baseCurrency,
-          accountToChfRate: rate ? Number(rate) : undefined,
-        }),
+        result: parseDegiroCsv(fileText, { accountBaseCurrency: baseCurrency }),
         error: null,
       };
     } catch (error) {
       return { result: null, error: error instanceof Error ? error.message : "The CSV could not be previewed." };
     }
-  }, [baseCurrency, fileText, rate]);
-
-  function selectAccount(nextAccountId: string) {
-    setAccountId(nextAccountId);
-    const currency = accounts.find((account) => account.id === nextAccountId)?.baseCurrency ?? newBaseCurrency;
-    setRate(currency === "CHF" ? "1" : "");
-  }
+  }, [baseCurrency, fileText]);
 
   return (
     <section className="page-card integration-card degiro-card">
@@ -107,7 +93,7 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
         <div><p>CSV statements</p><h2>DEGIRO</h2></div>
         <span className="connection-state is-ready">Local import</span>
       </div>
-      <p className="integration-copy">Import trades from a Transaction statement and cash movements, dividends, and fees from an Account statement. The file is validated before anything is saved.</p>
+      <p className="integration-copy">Import trades from a Transaction statement and cash movements, dividends, and fees from an Account statement. The file is validated first, then missing CHF rates are retrieved automatically for each date.</p>
       {state.error ? <ResultBanner error>{state.error}</ResultBanner> : null}
       {state.report ? (
         <ResultBanner>
@@ -118,7 +104,7 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
         <div className="field-grid import-fields">
           <div className="field">
             <label htmlFor="degiro-account">Broker account</label>
-            <select id="degiro-account" name="brokerAccountId" onChange={(event) => selectAccount(event.target.value)} value={accountId}>
+            <select id="degiro-account" name="brokerAccountId" onChange={(event) => setAccountId(event.target.value)} value={accountId}>
               {accounts.map((account) => <option key={account.id} value={account.id}>{account.accountName} · {account.baseCurrency}</option>)}
               <option value="new">Create another account…</option>
             </select>
@@ -133,17 +119,12 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
               <input id="degiro-base-currency" maxLength={3} name="baseCurrency" onChange={(event) => {
                 const currency = event.target.value.toUpperCase();
                 setNewBaseCurrency(currency);
-                setRate(currency === "CHF" ? "1" : "");
               }} value={newBaseCurrency} required />
             </div>
           </> : <>
             <input name="accountName" type="hidden" value={selectedAccount?.accountName ?? "Personal"} />
             <input name="baseCurrency" type="hidden" value={baseCurrency} />
           </>}
-          <div className="field">
-            <label htmlFor="degiro-rate">{baseCurrency}/CHF rate <span>{baseCurrency === "CHF" ? "Fixed" : "Fallback for this import"}</span></label>
-            <input id="degiro-rate" inputMode="decimal" min="0" name="accountToChfRate" onChange={(event) => setRate(event.target.value)} readOnly={baseCurrency === "CHF"} required={baseCurrency !== "CHF"} step="any" type="number" value={rate} />
-          </div>
           <div className="field field-span">
             <label htmlFor="degiro-statement">DEGIRO CSV statement</label>
             <label className="file-picker" htmlFor="degiro-statement">
@@ -181,7 +162,7 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
                     <td>{row.product ?? "Cash"}</td>
                     <td className="numeric mono">{row.quantity ?? "—"}</td>
                     <td className="numeric mono">{row.totalValue.toFixed(2)} {row.transactionCurrency}</td>
-                    <td className="numeric mono">{row.totalValueChf.toFixed(2)} CHF</td>
+                    <td className="numeric mono">{row.totalValueChf === null ? "Automatic on import" : `${row.totalValueChf.toFixed(2)} CHF`}</td>
                   </tr>
                 ))}</tbody>
               </table>

@@ -9,6 +9,7 @@ import {
   type Trading212HistoricalOrder,
   type Trading212Position,
 } from "@/lib/providers/broker";
+import { fxRateProvider, historicalFxKey, type HistoricalFxRequest } from "@/lib/providers/fx";
 
 export interface Trading212SyncReport {
   accountCurrency: string;
@@ -116,14 +117,10 @@ async function updatePositionQuote(
   return true;
 }
 
-export async function syncTrading212(input: { accountToChfRate?: number }): Promise<Trading212SyncReport> {
+export async function syncTrading212(): Promise<Trading212SyncReport> {
   const provider = new Trading212Provider();
   const account = await provider.getAccountSummary();
   const accountCurrency = account.currency.toUpperCase();
-  const accountToChfRate = accountCurrency === "CHF" ? 1 : positiveRate(input.accountToChfRate);
-  if (!accountToChfRate) {
-    throw new Error(`Trading 212 reports this account in ${accountCurrency}. Enter the current ${accountCurrency}/CHF rate and sync again.`);
-  }
 
   const [positions, orders, dividends, cashTransactions] = await Promise.all([
     provider.getOpenPositions(),
@@ -131,6 +128,35 @@ export async function syncTrading212(input: { accountToChfRate?: number }): Prom
     provider.getPaidDividends(),
     provider.getCashHistory(),
   ]);
+  const historicalRequests: HistoricalFxRequest[] = [];
+  for (const order of orders) {
+    const fill = order.fill;
+    const occurredAt = fill ? validDate(fill.filledAt) : null;
+    if (!fill || !occurredAt) continue;
+    historicalRequests.push({ currency: accountCurrency, date: occurredAt });
+    for (const tax of fill.walletImpact.taxes) {
+      if (tax.currency !== order.order.instrument.currency && tax.currency !== accountCurrency) {
+        historicalRequests.push({ currency: tax.currency, date: validDate(tax.chargedAt ?? "") ?? occurredAt });
+      }
+    }
+  }
+  for (const dividend of dividends) {
+    const occurredAt = validDate(dividend.paidOn);
+    if (occurredAt) historicalRequests.push({ currency: dividend.currency, date: occurredAt });
+  }
+  for (const cash of cashTransactions) {
+    const occurredAt = validDate(cash.dateTime);
+    if (occurredAt) historicalRequests.push({ currency: cash.currency, date: occurredAt });
+  }
+  const [accountToChfRate, historicalRates] = await Promise.all([
+    fxRateProvider.getCurrentRateToChf(accountCurrency),
+    fxRateProvider.getHistoricalRatesToChf(historicalRequests),
+  ]);
+  const historicalRate = (currency: string, date: Date) => {
+    const rate = historicalRates.get(historicalFxKey(currency, date));
+    if (!rate) throw new Error(`No automatic ${currency}/CHF rate is available for ${date.toISOString().slice(0, 10)}.`);
+    return rate;
+  };
   let imported = 0;
   let duplicates = 0;
   let quotesUpdated = 0;
@@ -161,6 +187,7 @@ export async function syncTrading212(input: { accountToChfRate?: number }): Prom
         skipped += 1;
         continue;
       }
+      const accountToChfAtExecution = historicalRate(accountCurrency, occurredAt);
       const externalId = `fill:${fill.id}`;
       const importFingerprint = fingerprint([externalId, order.order.side, fill.filledAt, quantity, executionPrice]);
       if (existingExternalIds.has(externalId) || existingFingerprints.has(importFingerprint)) {
@@ -178,13 +205,12 @@ export async function syncTrading212(input: { accountToChfRate?: number }): Prom
         tradingCurrency: order.order.instrument.currency,
         assetType: order.order.instrument.type,
       });
-      const fxRateToChf = instrumentToAccount * accountToChfRate;
+      const fxRateToChf = instrumentToAccount * accountToChfAtExecution;
       const feeChf = fill.walletImpact.taxes.reduce((total, tax) => {
         const amount = Math.abs(tax.quantity);
         if (tax.currency === order.order.instrument.currency) return total + amount * fxRateToChf;
-        if (tax.currency === accountCurrency) return total + amount * accountToChfRate;
-        warnings.push(`Tax currency ${tax.currency} on fill ${fill.id} could not be converted and was excluded.`);
-        return total;
+        if (tax.currency === accountCurrency) return total + amount * accountToChfAtExecution;
+        return total + amount * historicalRate(tax.currency, validDate(tax.chargedAt ?? "") ?? occurredAt);
       }, 0);
       const totalValue = quantity * executionPrice;
       await tx.transaction.create({
@@ -239,7 +265,7 @@ export async function syncTrading212(input: { accountToChfRate?: number }): Prom
       });
       const totalValue = Math.abs(dividend.amount);
       const currency = dividend.currency.toUpperCase();
-      const fxRateToChf = currency === "CHF" ? 1 : accountToChfRate;
+      const fxRateToChf = historicalRate(currency, occurredAt);
       await tx.transaction.create({
         data: {
           brokerAccountId: brokerAccount.id,
@@ -283,7 +309,7 @@ export async function syncTrading212(input: { accountToChfRate?: number }): Prom
         continue;
       }
       const currency = cash.currency.toUpperCase();
-      const fxRateToChf = currency === "CHF" ? 1 : accountToChfRate;
+      const fxRateToChf = historicalRate(currency, occurredAt);
       const totalValue = Math.abs(cash.amount);
       await tx.transaction.create({
         data: {

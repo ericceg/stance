@@ -9,6 +9,7 @@ PersPort is a lightweight, single-user investment portfolio tracker with CHF as 
 - Transaction-led portfolio accounting for buys, sells, dividends, deposits, withdrawals, and fees
 - Weighted-average cost basis, partial and full sells, realized/unrealized P&L, cash, and contribution-aware absolute P&L
 - Original-currency and stored CHF values on every transaction
+- Automatic current and historical CHF conversion through Frankfurter, with no FX-rate entry
 - Aggregated holdings with broker-level breakdowns
 - Sortable holdings table, allocation views, seeded snapshot chart, and responsive dark-mode UI
 - Position detail pages with identification, pricing, broker allocation, and transaction history
@@ -104,7 +105,7 @@ Copy `.env.example` to `.env`. Never put a real key in the example file or in a 
 
 1. In Trading 212, open **Settings → API (Beta)** and generate a key pair with read access to account data, portfolio, and history. Do not grant order permissions to PersPort.
 2. Put the pair in `.env` as `TRADING212_API_KEY` and `TRADING212_API_SECRET`. Set `TRADING212_ENVIRONMENT` to `live` or `demo`.
-3. Restart the development server, open **Import**, and select **Sync now**. For a non-CHF account, enter the account-currency/CHF conversion rate requested by the form.
+3. Restart the development server, open **Import**, and select **Sync now**. PersPort retrieves current and transaction-date CHF rates automatically.
 
 The sync imports completed trade fills, paid dividends, deposits, withdrawals, account fees, and interest. Internal transfers and unsupported corporate-action fills are deliberately skipped. Open positions also refresh Trading 212-backed current prices. Re-running sync is safe because imported records retain their Trading 212 references.
 
@@ -115,19 +116,23 @@ Export either report from DEGIRO’s Inbox in CSV format:
 - **Transaction statement** for buys, sells, execution prices, and transaction fees
 - **Account statement** for deposits, withdrawals, dividends, interest, withholding tax, and other fees
 
-Open **Import**, choose the DEGIRO account and CSV, review the local preview, then import. Trade-settlement cash rows in Account statements are ignored to avoid double-counting trades. If the account base currency is not CHF, supply its CHF rate; transaction statements that already contain CHF values use their row-specific conversion instead. The uploaded file is never saved, and stable fingerprints make overlapping exports safe to import.
+Open **Import**, choose the DEGIRO account and CSV, review the local preview, then import. Trade-settlement cash rows in Account statements are ignored to avoid double-counting trades. Transaction statements that contain CHF values keep their row-specific broker conversion; all missing conversions are retrieved automatically for each transaction date. The uploaded file is never saved, and stable fingerprints make overlapping exports safe to import.
+
+### Automatic FX conversion
+
+PersPort uses the public [Frankfurter](https://frankfurter.dev/) API for current and historical reference rates; it requires no API key. CHF transactions use a fixed rate of 1. If the service or a currency/date pair is temporarily unavailable, no transactions are imported or saved and the operation can be retried—there is no manual-rate fallback.
 
 The `.gitignore` excludes `.env`, SQLite files, private/upload directories, portfolio CSV exports, logs, and build output. Before publishing screenshots, reset with `npm run db:seed` so only fictional data is visible.
 
 ## Next milestone
 
-The next work is a replaceable live market-data and historical-FX source for holdings that are not priced by Trading 212, plus security/ticker editing and merging, transaction editing, historical security charts, and time-/money-weighted returns.
+The next work is live market data for holdings that are not priced by Trading 212, plus security/ticker editing and merging, transaction editing, historical security charts, and time-/money-weighted returns.
 
 ## Assumptions
 
 - One trusted local user; no authentication or tenancy
 - CHF is the only reporting currency
 - Weighted average cost is used for position accounting
-- Transaction CHF values preserve the FX rate at the time of the transaction; current valuations use the quote's current CHF rate
+- Transaction CHF values preserve the broker-provided conversion when available and otherwise use the automatic reference rate for the transaction date; current valuations use the latest automatic rate
 - Dividends are included in realized P&L, while deposits and withdrawals are external cash flows
 - SQLite is for local use. A Vercel deployment should switch `DATABASE_URL` to PostgreSQL or another persistent hosted database because serverless local files are not durable

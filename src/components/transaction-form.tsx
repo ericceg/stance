@@ -20,7 +20,6 @@ export function TransactionForm({
   const [state, action, pending] = useActionState(createTransactionAction, initialState);
   const [type, setType] = useState<TransactionType>("BUY");
   const [currency, setCurrency] = useState("CHF");
-  const [fxRate, setFxRate] = useState(currency === "CHF" ? "1" : "");
   const isTrade = type === "BUY" || type === "SELL";
   const requiresSecurity = isTrade || type === "DIVIDEND";
 
@@ -55,7 +54,6 @@ export function TransactionForm({
               const security = securities.find((item) => item.id === event.target.value);
               if (security) {
                 setCurrency(security.tradingCurrency);
-                setFxRate(security.tradingCurrency === "CHF" ? "1" : "");
               }
             }} required={requiresSecurity}>
               <option value="">No security</option>
@@ -93,15 +91,13 @@ export function TransactionForm({
             <input id="transactionCurrency" maxLength={3} name="transactionCurrency" onChange={(event) => {
               const nextCurrency = event.target.value.toUpperCase();
               setCurrency(nextCurrency);
-              setFxRate(nextCurrency === "CHF" ? "1" : "");
             }} value={currency} required />
             {state.fieldErrors?.transactionCurrency ? <small className="field-error">{state.fieldErrors.transactionCurrency[0]}</small> : null}
           </div>
           <div className="field">
-            <label htmlFor="fxRateToChf">{currency}/CHF rate</label>
-            <input id="fxRateToChf" inputMode="decimal" min="0" name="fxRateToChf" onChange={(event) => setFxRate(event.target.value)} placeholder="e.g. 0.9400" step="any" type="number" value={fxRate} required />
-            <small>CHF received for one unit of {currency || "currency"}.</small>
-            {state.fieldErrors?.fxRateToChf ? <small className="field-error">{state.fieldErrors.fxRateToChf[0]}</small> : null}
+            <label htmlFor="automatic-fx">CHF conversion</label>
+            <input id="automatic-fx" readOnly value="Automatic" />
+            <small>The {currency || "currency"}/CHF reference rate is looked up for the transaction date.</small>
           </div>
           <div className="field">
             <label htmlFor="fee">Fee <span>In transaction currency</span></label>

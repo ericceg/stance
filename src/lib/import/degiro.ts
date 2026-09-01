@@ -13,11 +13,13 @@ export interface DegiroImportRow {
   quantity: number | null;
   executionPrice: number | null;
   transactionCurrency: string;
-  fxRateToChf: number;
-  fee: number;
-  feeChf: number;
+  fxRateToChf: number | null;
+  fee: number | null;
+  feeChf: number | null;
+  sourceFeeAmount: number;
+  sourceFeeCurrency: string;
   totalValue: number;
-  totalValueChf: number;
+  totalValueChf: number | null;
   notes: string;
 }
 
@@ -30,7 +32,6 @@ export interface DegiroParseResult {
 
 interface DegiroParseOptions {
   accountBaseCurrency: string;
-  accountToChfRate?: number;
 }
 
 const HEADER_ALIASES = {
@@ -186,24 +187,18 @@ function deriveFxToChf({
   grossLocal,
   baseCurrency,
   grossBase,
-  accountBaseCurrency,
-  accountToChfRate,
 }: {
   localCurrency: string;
   grossLocal: number;
   baseCurrency: string;
   grossBase: number | null;
-  accountBaseCurrency: string;
-  accountToChfRate: number;
 }) {
   if (localCurrency === "CHF") return 1;
   if (grossBase && grossBase > 0 && grossLocal > 0) {
     const localToBase = grossBase / grossLocal;
     if (baseCurrency === "CHF") return localToBase;
-    if (baseCurrency === accountBaseCurrency) return localToBase * accountToChfRate;
   }
-  if (localCurrency === accountBaseCurrency) return accountToChfRate;
-  return accountToChfRate;
+  return null;
 }
 
 function makeBrokerSymbol(reference: string, isin: string, product: string) {
@@ -265,16 +260,19 @@ function transactionStatement(
       grossLocal: localValue,
       baseCurrency,
       grossBase: baseValue,
-      accountBaseCurrency: options.accountBaseCurrency,
-      accountToChfRate: options.accountToChfRate,
     });
     const feeAmount = Math.abs(parseLocalizedNumber(cell(record, columns.fees)) ?? 0);
     const feeCurrency = normalizeCurrency(currencyAfter(record, columns.fees), baseCurrency);
     const feeChf = feeCurrency === "CHF"
       ? feeAmount
-      : feeCurrency === localCurrency
+      : feeCurrency === localCurrency && fxRateToChf !== null
         ? feeAmount * fxRateToChf
-        : feeAmount * options.accountToChfRate;
+        : null;
+    const fee = feeCurrency === localCurrency
+      ? feeAmount
+      : feeChf !== null && fxRateToChf !== null
+        ? feeChf / fxRateToChf
+        : null;
     const product = cell(record, columns.product);
     const isin = cell(record, columns.isin).toUpperCase();
     const reference = cell(record, columns.reference);
@@ -292,10 +290,12 @@ function transactionStatement(
       executionPrice,
       transactionCurrency: localCurrency,
       fxRateToChf,
-      fee: fxRateToChf > 0 ? feeChf / fxRateToChf : 0,
+      fee,
       feeChf,
+      sourceFeeAmount: feeAmount,
+      sourceFeeCurrency: feeCurrency,
       totalValue: localValue,
-      totalValueChf: localValue * fxRateToChf,
+      totalValueChf: fxRateToChf === null ? null : localValue * fxRateToChf,
       notes: `DEGIRO transaction statement row ${rowNumber}`,
     });
   });
@@ -423,7 +423,7 @@ function accountStatement(
       ? 1
       : trade && convertedValueChf
         ? convertedValueChf / totalValue
-        : options.accountToChfRate;
+        : null;
     const product = cell(record, columns.product);
     const isin = cell(record, columns.isin).toUpperCase();
     rows.push({
@@ -439,9 +439,11 @@ function accountStatement(
       transactionCurrency,
       fxRateToChf,
       fee: type === "FEE" ? totalValue : 0,
-      feeChf: type === "FEE" ? totalValue * fxRateToChf : 0,
+      feeChf: type === "FEE" && fxRateToChf !== null ? totalValue * fxRateToChf : type === "FEE" ? null : 0,
+      sourceFeeAmount: type === "FEE" ? totalValue : 0,
+      sourceFeeCurrency: transactionCurrency,
       totalValue,
-      totalValueChf: totalValue * fxRateToChf,
+      totalValueChf: fxRateToChf === null ? null : totalValue * fxRateToChf,
       notes: `${description} · DEGIRO account statement row ${rowNumber}`,
     });
   });
@@ -455,11 +457,7 @@ export function parseDegiroCsv(text: string, options: DegiroParseOptions): Degir
   if (matrix.length < 2) throw new Error("The selected CSV has no data rows.");
   const headers = matrix[0];
   const accountBaseCurrency = normalizeCurrency(options.accountBaseCurrency, "CHF");
-  const accountToChfRate = options.accountToChfRate ?? (accountBaseCurrency === "CHF" ? 1 : 0);
-  if (!Number.isFinite(accountToChfRate) || accountToChfRate <= 0) {
-    throw new Error(`Enter a positive ${accountBaseCurrency}/CHF rate before importing.`);
-  }
-  const resolvedOptions = { accountBaseCurrency, accountToChfRate };
+  const resolvedOptions = { accountBaseCurrency };
 
   if (findColumn(headers, HEADER_ALIASES.quantity) >= 0 && findColumn(headers, HEADER_ALIASES.price) >= 0) {
     return transactionStatement(matrix, resolvedOptions);
