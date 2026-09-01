@@ -18,6 +18,7 @@ PersPort is a lightweight, single-user investment portfolio tracker with CHF as 
 - Replaceable, read-only `BrokerProvider` and `MarketDataProvider` contracts
 - Read-only Trading 212 sync for order fills, dividends, cash movements, open positions, and current prices
 - DEGIRO Transaction and Account statement CSV preview/import with localized-number support
+- Automatic Yahoo Finance quote resolution by ISIN for open DEGIRO positions
 - Idempotent broker ingestion using external IDs and stable row fingerprints
 - Unit tests covering the important accounting paths
 
@@ -116,7 +117,7 @@ Export either report from DEGIRO’s Inbox in CSV format:
 - **Transaction statement** for buys, sells, execution prices, and transaction fees
 - **Account statement** for deposits, withdrawals, dividends, interest, withholding tax, and other fees
 
-Open **Import**, choose the DEGIRO account and CSV, review the local preview, then import. Trade-settlement cash rows in Account statements are ignored to avoid double-counting trades. Transaction statements that contain CHF values keep their row-specific broker conversion; all missing conversions are retrieved automatically for each transaction date. The uploaded file is never saved, and stable fingerprints make overlapping exports safe to import.
+Open **Import**, choose the DEGIRO account and CSV, review the local preview, then import. Trade-settlement cash rows in Account statements are ignored to avoid double-counting trades. Transaction statements that contain CHF values keep their row-specific broker conversion; all missing conversions are retrieved automatically for each transaction date. Open positions are matched to Yahoo Finance by ISIN and receive current prices in the quote currency with automatic CHF conversion. The uploaded file is never saved, and stable fingerprints make overlapping exports safe to import.
 
 ### Automatic FX conversion
 
@@ -126,7 +127,7 @@ The `.gitignore` excludes `.env`, SQLite files, private/upload directories, port
 
 ## Next milestone
 
-The next work is live market data for holdings that are not priced by Trading 212, plus security/ticker editing and merging, transaction editing, historical security charts, and time-/money-weighted returns.
+The next work is security/ticker editing and merging, transaction editing, historical security charts, and time-/money-weighted returns.
 
 ## Assumptions
 

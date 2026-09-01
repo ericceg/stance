@@ -97,7 +97,7 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
       {state.error ? <ResultBanner error>{state.error}</ResultBanner> : null}
       {state.report ? (
         <ResultBanner>
-          Imported {state.report.imported} new records and skipped {state.report.duplicates} duplicates from the {state.report.statementKind} statement.
+          Imported {state.report.imported} new records, skipped {state.report.duplicates} duplicates, and refreshed {state.report.quotesUpdated} prices from the {state.report.statementKind} statement.
         </ResultBanner>
       ) : null}
       <form action={action} className="degiro-form">

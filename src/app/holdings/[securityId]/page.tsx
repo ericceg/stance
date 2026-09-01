@@ -27,7 +27,7 @@ export default async function HoldingDetailPage({ params }: { params: Promise<{ 
       <section className="page-card">
         <div className="detail-hero">
           <div className="detail-identity"><span className="security-icon">{position.security.ticker.slice(0, 2)}</span><div><h2>{position.security.name}</h2><p>{position.security.ticker} · {position.security.exchange ?? "Unknown exchange"} · {position.security.tradingCurrency}</p></div></div>
-          <div className="detail-price"><strong>{position.currentPrice === null ? "—" : formatCurrency(position.currentPrice, position.security.tradingCurrency)}</strong><small>{position.quote ? `Mock quote · ${formatDate(position.quote.quotedAt)}` : "Missing market price"}</small></div>
+          <div className="detail-price"><strong>{position.currentPrice === null ? "—" : formatCurrency(position.currentPrice, position.quote?.currency ?? position.security.tradingCurrency)}</strong><small>{position.quote ? `${position.quote.provider === "YAHOO" ? "Yahoo Finance" : position.quote.provider} quote · ${formatDate(position.quote.quotedAt)}` : "Missing market price"}</small></div>
         </div>
         <div className="detail-stats">
           <div><span>Total quantity</span><strong>{formatNumber(position.quantity)}</strong></div>

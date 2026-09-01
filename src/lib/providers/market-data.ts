@@ -1,4 +1,42 @@
-import type { QuoteRecord, SecurityRecord } from "@/lib/portfolio/types";
+import { z } from "zod";
+import type { QuoteRecord, SecurityRecord } from "../portfolio/types";
+import { fxRateProvider } from "./fx";
+
+const YAHOO_API_URL = "https://query2.finance.yahoo.com";
+const yahooSearchSchema = z.object({
+  quotes: z.array(z.object({
+    isYahooFinance: z.boolean().optional(),
+    quoteType: z.string().optional(),
+    symbol: z.string().min(1),
+  })),
+});
+const yahooChartSchema = z.object({
+  chart: z.object({
+    result: z.array(z.object({
+      meta: z.object({
+        chartPreviousClose: z.number().positive().optional(),
+        currency: z.string().min(3),
+        previousClose: z.number().positive().optional(),
+        regularMarketPrice: z.number().positive(),
+        regularMarketTime: z.number().optional(),
+      }),
+    })).nullable(),
+  }),
+});
+
+async function fetchYahooJson(url: URL): Promise<unknown> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 PersPort/0.1" },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`Yahoo Finance returned HTTP ${response.status}.`);
+  return response.json();
+}
+
+function yahooCurrency(currency: string) {
+  return currency === "GBp" ? { code: "GBP", scale: 0.01 } : { code: currency.toUpperCase(), scale: 1 };
+}
 
 export interface HistoricalPrice {
   timestamp: Date;
@@ -18,6 +56,77 @@ export interface MarketDataProvider {
   getQuotes(securities: SecurityRecord[]): Promise<QuoteRecord[]>;
   getHistoricalPrices(security: SecurityRecord, range: HistoricalRange): Promise<HistoricalPrice[]>;
   getFxRate(fromCurrency: string, toCurrency: string): Promise<number | null>;
+}
+
+export interface ResolvedYahooQuote {
+  quote: QuoteRecord;
+  symbol: string;
+}
+
+/** Current market quotes resolved by canonical ISIN through Yahoo Finance. */
+export class YahooFinanceMarketDataProvider implements MarketDataProvider {
+  readonly name = "YAHOO";
+
+  constructor(private readonly rateProvider: Pick<typeof fxRateProvider, "getCurrentRateToChf"> = fxRateProvider) {}
+
+  private async resolveSymbol(security: SecurityRecord) {
+    if (security.marketDataTicker) return security.marketDataTicker;
+    const url = new URL("/v1/finance/search", YAHOO_API_URL);
+    url.searchParams.set("q", security.isin ?? security.ticker);
+    url.searchParams.set("quotesCount", "10");
+    url.searchParams.set("newsCount", "0");
+    const parsed = yahooSearchSchema.safeParse(await fetchYahooJson(url));
+    if (!parsed.success) throw new Error("Yahoo Finance returned an invalid symbol search response.");
+    return parsed.data.quotes.find((item) => (
+      item.isYahooFinance !== false
+      && ["EQUITY", "ETF", "MUTUALFUND"].includes(item.quoteType ?? "")
+    ))?.symbol ?? null;
+  }
+
+  async getResolvedQuote(security: SecurityRecord): Promise<ResolvedYahooQuote | null> {
+    const symbol = await this.resolveSymbol(security);
+    if (!symbol) return null;
+    const url = new URL(`/v8/finance/chart/${encodeURIComponent(symbol)}`, YAHOO_API_URL);
+    url.searchParams.set("range", "5d");
+    url.searchParams.set("interval", "1d");
+    const parsed = yahooChartSchema.safeParse(await fetchYahooJson(url));
+    const result = parsed.success ? parsed.data.chart.result?.[0] : null;
+    if (!result) throw new Error(`Yahoo Finance returned no current quote for ${symbol}.`);
+    const currency = yahooCurrency(result.meta.currency);
+    const fxRateToChf = await this.rateProvider.getCurrentRateToChf(currency.code);
+    const rawPreviousClose = result.meta.previousClose ?? result.meta.chartPreviousClose ?? null;
+    return {
+      symbol,
+      quote: {
+        securityId: security.id,
+        price: result.meta.regularMarketPrice * currency.scale,
+        previousClose: rawPreviousClose === null ? null : rawPreviousClose * currency.scale,
+        currency: currency.code,
+        fxRateToChf,
+        provider: this.name,
+        quotedAt: result.meta.regularMarketTime ? new Date(result.meta.regularMarketTime * 1_000) : new Date(),
+      },
+    };
+  }
+
+  async getQuote(security: SecurityRecord) {
+    return (await this.getResolvedQuote(security))?.quote ?? null;
+  }
+
+  async getQuotes(securities: SecurityRecord[]) {
+    const results = await Promise.all(securities.map((security) => this.getQuote(security)));
+    return results.filter((quote): quote is QuoteRecord => quote !== null);
+  }
+
+  async getHistoricalPrices() {
+    return [];
+  }
+
+  async getFxRate(fromCurrency: string, toCurrency: string) {
+    if (fromCurrency === toCurrency) return 1;
+    if (toCurrency !== "CHF") return null;
+    return this.rateProvider.getCurrentRateToChf(fromCurrency);
+  }
 }
 
 export class MockMarketDataProvider implements MarketDataProvider {

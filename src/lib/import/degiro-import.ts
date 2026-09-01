@@ -12,6 +12,7 @@ export interface DegiroImportReport {
   imported: number;
   duplicates: number;
   ignored: number;
+  quotesUpdated: number;
   warnings: string[];
 }
 
@@ -166,6 +167,7 @@ export async function importDegiroCsv(input: {
     imported,
     duplicates,
     ignored: parsed.ignoredRows,
+    quotesUpdated: 0,
     warnings: warnings.slice(0, 20),
   };
 }

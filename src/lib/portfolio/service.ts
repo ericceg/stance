@@ -167,6 +167,8 @@ export async function getDashboardData() {
       ? "Mixed quotes"
       : quoteProviders[0] === "MOCK"
         ? "Mock quotes"
+        : quoteProviders[0] === "YAHOO"
+          ? "Yahoo Finance"
         : quoteProviders[0];
   const importedDataStartedAt = data.transactions.reduce<Date | null>((earliest, transaction) => {
     if (transaction.importSource === null) return earliest;

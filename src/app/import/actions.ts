@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { importDegiroCsv, type DegiroImportReport } from "@/lib/import/degiro-import";
 import { syncTrading212, type Trading212SyncReport } from "@/lib/import/trading212-sync";
+import { refreshOpenPositionQuotes } from "@/lib/portfolio/market-data-sync";
 import { recordCurrentPortfolioSnapshot } from "@/lib/portfolio/service";
 
 export interface DegiroImportState {
@@ -60,12 +61,13 @@ export async function importDegiroAction(
       brokerAccountId,
       csv: await file.text(),
     });
+    const quoteReport = await refreshOpenPositionQuotes();
     await recordCurrentPortfolioSnapshot();
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
     revalidatePath("/import");
-    return { report };
+    return { report: { ...report, quotesUpdated: quoteReport.updated, warnings: [...report.warnings, ...quoteReport.warnings] } };
   } catch (error) {
     console.error("DEGIRO import failed", error);
     return { error: error instanceof Error ? error.message : "The DEGIRO statement could not be imported." };

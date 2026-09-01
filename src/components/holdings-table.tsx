@@ -82,7 +82,7 @@ export function HoldingsTable({ positions }: { positions: Position[] }) {
                 <td className="broker-cell">{position.brokerLabel}</td>
                 <td className="numeric mono">{formatNumber(position.quantity)}</td>
                 <td className="numeric mono">{formatCurrency(position.averageCostLocal, position.security.tradingCurrency)}</td>
-                <td className="numeric mono">{position.currentPrice === null ? "—" : formatCurrency(position.currentPrice, position.security.tradingCurrency)}</td>
+                <td className="numeric mono">{position.currentPrice === null ? "—" : formatCurrency(position.currentPrice, position.quote?.currency ?? position.security.tradingCurrency)}</td>
                 <td className="numeric mono strong">{position.marketValueChf === null ? "—" : formatChf(position.marketValueChf)}</td>
                 <td className="numeric mono"><PnlValue value={position.todayPnlChf} /></td>
                 <td className="numeric mono"><PnlValue value={position.totalPnlChf} /></td>
