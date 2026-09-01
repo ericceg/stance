@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { importDegiroCsv, type DegiroImportReport } from "@/lib/import/degiro-import";
 import { syncTrading212, type Trading212SyncReport } from "@/lib/import/trading212-sync";
+import { recordCurrentPortfolioSnapshot } from "@/lib/portfolio/service";
 
 export interface DegiroImportState {
   error?: string;
@@ -59,6 +60,7 @@ export async function importDegiroAction(
       brokerAccountId,
       csv: await file.text(),
     });
+    await recordCurrentPortfolioSnapshot();
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
@@ -78,6 +80,7 @@ export async function syncTrading212Action(
   void _formData;
   try {
     const report = await syncTrading212();
+    await recordCurrentPortfolioSnapshot();
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");

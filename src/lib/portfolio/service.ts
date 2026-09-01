@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { calculateCashChf, calculatePortfolio } from "./accounting";
+import { buildPortfolioHistory } from "./history";
 import { TRANSACTION_TYPES, type AccountingTransaction, type TransactionType } from "./types";
 
 function toNumber(value: { toNumber(): number } | null) {
@@ -91,6 +92,20 @@ export async function loadPortfolio() {
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
+export async function recordCurrentPortfolioSnapshot() {
+  const data = await loadPortfolio();
+  return prisma.portfolioSnapshot.create({
+    data: {
+      timestamp: new Date(),
+      portfolioValueChf: data.summary.portfolioValueChf,
+      investedCapitalChf: data.summary.investedCapitalChf,
+      cashChf: data.summary.cashChf,
+      unrealizedPnlChf: data.summary.unrealizedPnlChf,
+      realizedPnlChf: data.summary.realizedPnlChf,
+    },
+  });
+}
+
 export async function getDashboardData() {
   const data = await loadPortfolio();
   const accountById = new Map(data.brokerAccounts.map((account) => [account.id, account]));
@@ -145,6 +160,33 @@ export async function getDashboardData() {
     if (!position.quote) return latest;
     return latest === null || position.quote.quotedAt > latest ? position.quote.quotedAt : latest;
   }, null);
+  const quoteProviders = [...new Set(positions.flatMap((position) => position.quote ? [position.quote.provider] : []))];
+  const quoteProviderLabel = quoteProviders.length === 0
+    ? "No quotes"
+    : quoteProviders.length > 1
+      ? "Mixed quotes"
+      : quoteProviders[0] === "MOCK"
+        ? "Mock quotes"
+        : quoteProviders[0];
+  const importedDataStartedAt = data.transactions.reduce<Date | null>((earliest, transaction) => {
+    if (transaction.importSource === null) return earliest;
+    return earliest === null || transaction.createdAt < earliest ? transaction.createdAt : earliest;
+  }, null);
+  const history = buildPortfolioHistory({
+    snapshots: data.snapshots.map((snapshot) => ({
+      timestamp: snapshot.timestamp,
+      portfolioValueChf: snapshot.portfolioValueChf.toNumber(),
+      investedCapitalChf: snapshot.investedCapitalChf.toNumber(),
+      cashChf: snapshot.cashChf.toNumber(),
+    })),
+    current: {
+      portfolioValueChf: data.summary.portfolioValueChf,
+      investedCapitalChf: data.summary.investedCapitalChf,
+      cashChf: data.summary.cashChf,
+    },
+    hasTransactions: data.transactions.length > 0,
+    importedDataStartedAt,
+  });
 
   return {
     summary: {
@@ -162,18 +204,16 @@ export async function getDashboardData() {
     },
     positions,
     issues: data.summary.issues,
-    snapshots: data.snapshots.map((snapshot) => ({
-      timestamp: snapshot.timestamp.toISOString(),
-      portfolioValueChf: snapshot.portfolioValueChf.toNumber(),
-      investedCapitalChf: snapshot.investedCapitalChf.toNumber(),
-      cashChf: snapshot.cashChf.toNumber(),
-    })),
+    snapshots: history.points,
+    recordedSnapshotCount: history.recordedPointCount,
+    hasTransactions: data.transactions.length > 0,
     allocation: {
       asset: toAllocation(assetAllocation),
       currency: toAllocation(currencyAllocation),
       broker: toAllocation(brokerAllocation),
     },
     updatedAt: latestQuoteTimestamp,
+    quoteProviderLabel,
   };
 }
 

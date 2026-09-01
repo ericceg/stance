@@ -98,7 +98,10 @@ export async function deleteTransactionAction(id: string) {
 }
 
 export async function clearTransactionsAction() {
-  await prisma.transaction.deleteMany();
+  await prisma.$transaction([
+    prisma.transaction.deleteMany(),
+    prisma.portfolioSnapshot.deleteMany(),
+  ]);
   revalidatePath("/");
   revalidatePath("/transactions");
 }

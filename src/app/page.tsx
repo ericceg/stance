@@ -27,7 +27,7 @@ export default async function Home() {
         <div className="total-card">
           <div className="total-card-head">
             <div><p>Total portfolio</p><strong>{formatChf(data.summary.portfolioValueChf)}</strong><span>Holdings + available cash</span></div>
-            <div className="quote-status"><RefreshCw aria-hidden="true" /><span>Mock quotes<small>Updated {quoteLabel}</small></span></div>
+            <div className="quote-status"><RefreshCw aria-hidden="true" /><span>{data.quoteProviderLabel}<small>Updated {quoteLabel}</small></span></div>
           </div>
           <div className="metric-grid">
             <div><span>Today</span><strong className={toneForValue(data.summary.todayPnlChf)}>{formatChf(data.summary.todayPnlChf, { signed: true })}</strong><small className={toneForValue(data.summary.todayReturnPercent)}>{formatPercent(data.summary.todayReturnPercent, { signed: true })}</small></div>
@@ -47,7 +47,7 @@ export default async function Home() {
         <div className="method-note"><Clock3 aria-hidden="true" /><span><strong>Average-cost accounting</strong><small>Fees included · CHF conversion stored per transaction</small></span></div>
       </section>
 
-      <PortfolioChart snapshots={data.snapshots} />
+      <PortfolioChart hasTransactions={data.hasTransactions} recordedSnapshotCount={data.recordedSnapshotCount} snapshots={data.snapshots} />
       <HoldingsTable positions={data.positions} />
     </AppShell>
   );
