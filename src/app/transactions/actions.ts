@@ -90,3 +90,9 @@ export async function deleteTransactionAction(id: string) {
   revalidatePath("/");
   revalidatePath("/transactions");
 }
+
+export async function clearTransactionsAction() {
+  await prisma.transaction.deleteMany();
+  revalidatePath("/");
+  revalidatePath("/transactions");
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CircleCheck, Plus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { ClearTransactionsButton } from "@/components/clear-transactions-button";
 import { DeleteTransactionButton } from "@/components/delete-transaction-button";
 import { formatChf, formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { loadPortfolio } from "@/lib/portfolio/service";
@@ -19,7 +20,10 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
       <section className="panel holdings-panel">
         <div className="section-heading table-heading">
           <div><p>Ledger</p><h2>All transactions</h2></div>
-          <Link className="secondary-button" href="/transactions/new"><Plus aria-hidden="true" />Add transaction</Link>
+          <div className="flex items-center gap-2">
+            {transactions.length > 0 ? <ClearTransactionsButton count={transactions.length} /> : null}
+            <Link className="secondary-button" href="/transactions/new"><Plus aria-hidden="true" />Add transaction</Link>
+          </div>
         </div>
         <div className="table-scroll">
           <table className="data-table transaction-table">
