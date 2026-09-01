@@ -19,12 +19,17 @@ export async function refreshOpenPositionQuotes(): Promise<MarketDataRefreshRepo
     && (position.quote === null || position.quote.provider === provider.name)
   ));
   const results = await Promise.allSettled(targets.map(async (position) => {
-    const resolved = await provider.getResolvedQuote(position.security);
+    const latestTrade = portfolio.accountingTransactions.findLast((transaction) => (
+      transaction.securityId === position.securityId
+      && (transaction.type === "BUY" || transaction.type === "SELL")
+    ));
+    const tradingCurrency = latestTrade?.transactionCurrency ?? position.security.tradingCurrency;
+    const resolved = await provider.getResolvedQuote({ ...position.security, tradingCurrency });
     if (!resolved) throw new Error(`No Yahoo Finance symbol matched ${position.security.name}.`);
     await prisma.$transaction([
       prisma.security.update({
         where: { id: position.securityId },
-        data: { marketDataProvider: provider.name, marketDataTicker: resolved.symbol },
+        data: { marketDataProvider: provider.name, marketDataTicker: resolved.symbol, tradingCurrency },
       }),
       prisma.priceQuote.upsert({
         where: { securityId: position.securityId },

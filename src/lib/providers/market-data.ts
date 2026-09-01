@@ -5,6 +5,7 @@ import { fxRateProvider } from "./fx";
 const YAHOO_API_URL = "https://query2.finance.yahoo.com";
 const yahooSearchSchema = z.object({
   quotes: z.array(z.object({
+    currency: z.string().optional(),
     isYahooFinance: z.boolean().optional(),
     quoteType: z.string().optional(),
     symbol: z.string().min(1),
@@ -69,23 +70,30 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
 
   constructor(private readonly rateProvider: Pick<typeof fxRateProvider, "getCurrentRateToChf"> = fxRateProvider) {}
 
-  private async resolveSymbol(security: SecurityRecord) {
-    if (security.marketDataTicker) return security.marketDataTicker;
-    const url = new URL("/v1/finance/search", YAHOO_API_URL);
-    url.searchParams.set("q", security.isin ?? security.ticker);
-    url.searchParams.set("quotesCount", "10");
-    url.searchParams.set("newsCount", "0");
-    const parsed = yahooSearchSchema.safeParse(await fetchYahooJson(url));
-    if (!parsed.success) throw new Error("Yahoo Finance returned an invalid symbol search response.");
-    return parsed.data.quotes.find((item) => (
+  private async searchSymbols(security: SecurityRecord) {
+    const queries = [...new Set([security.isin ?? security.ticker, security.name])];
+    const responses = await Promise.all(queries.map(async (query) => {
+      const url = new URL("/v1/finance/search", YAHOO_API_URL);
+      url.searchParams.set("q", query);
+      url.searchParams.set("quotesCount", "20");
+      url.searchParams.set("newsCount", "0");
+      const parsed = yahooSearchSchema.safeParse(await fetchYahooJson(url));
+      if (!parsed.success) throw new Error("Yahoo Finance returned an invalid symbol search response.");
+      return parsed.data.quotes;
+    }));
+    const candidates = responses.flat().filter((item, index, items) => (
       item.isYahooFinance !== false
       && ["EQUITY", "ETF", "MUTUALFUND"].includes(item.quoteType ?? "")
-    ))?.symbol ?? null;
+      && items.findIndex((candidate) => candidate.symbol === item.symbol) === index
+    ));
+    return candidates.sort((left, right) => {
+      const leftMatches = left.currency && yahooCurrency(left.currency).code === security.tradingCurrency;
+      const rightMatches = right.currency && yahooCurrency(right.currency).code === security.tradingCurrency;
+      return Number(rightMatches) - Number(leftMatches);
+    }).map((item) => item.symbol);
   }
 
-  async getResolvedQuote(security: SecurityRecord): Promise<ResolvedYahooQuote | null> {
-    const symbol = await this.resolveSymbol(security);
-    if (!symbol) return null;
+  private async fetchResolvedQuote(securityId: string, symbol: string): Promise<ResolvedYahooQuote> {
     const url = new URL(`/v8/finance/chart/${encodeURIComponent(symbol)}`, YAHOO_API_URL);
     url.searchParams.set("range", "5d");
     url.searchParams.set("interval", "1d");
@@ -98,7 +106,7 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
     return {
       symbol,
       quote: {
-        securityId: security.id,
+        securityId,
         price: result.meta.regularMarketPrice * currency.scale,
         previousClose: rawPreviousClose === null ? null : rawPreviousClose * currency.scale,
         currency: currency.code,
@@ -107,6 +115,27 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
         quotedAt: result.meta.regularMarketTime ? new Date(result.meta.regularMarketTime * 1_000) : new Date(),
       },
     };
+  }
+
+  async getResolvedQuote(security: SecurityRecord): Promise<ResolvedYahooQuote | null> {
+    let fallback: ResolvedYahooQuote | null = null;
+    if (security.marketDataTicker) {
+      fallback = await this.fetchResolvedQuote(security.id, security.marketDataTicker);
+      if (fallback.quote.currency === security.tradingCurrency) return fallback;
+    }
+
+    const symbols = await this.searchSymbols(security);
+    for (const symbol of symbols) {
+      if (symbol === security.marketDataTicker) continue;
+      try {
+        const resolved = await this.fetchResolvedQuote(security.id, symbol);
+        if (!fallback) fallback = resolved;
+        if (resolved.quote.currency === security.tradingCurrency) return resolved;
+      } catch {
+        // A stale search result must not prevent another listing from being tried.
+      }
+    }
+    return fallback;
   }
 
   async getQuote(security: SecurityRecord) {

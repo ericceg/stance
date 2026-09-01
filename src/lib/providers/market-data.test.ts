@@ -26,6 +26,9 @@ describe("YahooFinanceMarketDataProvider", () => {
         quotes: [{ symbol: "CHDVD.SW", quoteType: "ETF", isYahooFinance: true }],
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({
+        quotes: [{ symbol: "CHDVD.SW", quoteType: "ETF", isYahooFinance: true }],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
         chart: { result: [{ meta: {
           currency: "CHF",
           regularMarketPrice: 191.88,
@@ -53,9 +56,43 @@ describe("YahooFinanceMarketDataProvider", () => {
     const rateProvider = { getCurrentRateToChf: vi.fn().mockResolvedValue(1.05) };
 
     const result = await new YahooFinanceMarketDataProvider(rateProvider)
-      .getResolvedQuote({ ...security, marketDataTicker: "TEST.L" });
+      .getResolvedQuote({ ...security, tradingCurrency: "GBP", marketDataTicker: "TEST.L" });
 
     expect(result?.quote).toMatchObject({ currency: "GBP", price: 54.32, previousClose: 54 });
     expect(rateProvider.getCurrentRateToChf).toHaveBeenCalledWith("GBP");
+  });
+
+  it("replaces a cached quote with a listing in the imported trading currency", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        chart: { result: [{ meta: { currency: "GBp", regularMarketPrice: 3_215 } }] },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        quotes: [
+          { symbol: "EIMI.L", currency: "GBp", quoteType: "ETF", isYahooFinance: true },
+          { symbol: "EIMI.DE", currency: "EUR", quoteType: "ETF", isYahooFinance: true },
+        ],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        quotes: [
+          { symbol: "EIMI.L", currency: "GBp", quoteType: "ETF", isYahooFinance: true },
+          { symbol: "EIMI.DE", currency: "EUR", quoteType: "ETF", isYahooFinance: true },
+        ],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        chart: { result: [{ meta: { currency: "EUR", regularMarketPrice: 47.746 } }] },
+      })));
+    vi.stubGlobal("fetch", fetchMock);
+    const rateProvider = { getCurrentRateToChf: vi.fn().mockImplementation(async (currency: string) => currency === "EUR" ? 0.94 : 1.06) };
+
+    const result = await new YahooFinanceMarketDataProvider(rateProvider).getResolvedQuote({
+      ...security,
+      isin: "IE00BKM4GZ66",
+      ticker: "EIMI",
+      tradingCurrency: "EUR",
+      marketDataTicker: "EIMI.L",
+    });
+
+    expect(result).toMatchObject({ symbol: "EIMI.DE", quote: { currency: "EUR", price: 47.746 } });
   });
 });

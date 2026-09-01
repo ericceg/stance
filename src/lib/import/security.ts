@@ -34,7 +34,6 @@ async function reconcileImportedSecurity(
   const importedAssetType = supportedAssetType(identity.assetType);
   const assetType = security.assetType === "OTHER" ? importedAssetType : security.assetType;
   const tradingCurrency = identity.authoritativeTradingCurrency
-    && security.marketDataProvider === identity.source
     ? identity.tradingCurrency
     : security.tradingCurrency;
   if (security.assetType === assetType && security.tradingCurrency === tradingCurrency) return security;

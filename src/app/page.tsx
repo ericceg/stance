@@ -7,6 +7,7 @@ import { PortfolioChart } from "@/components/portfolio-chart";
 import { formatChf, formatPercent, toneForValue } from "@/lib/format";
 import { getDashboardData } from "@/lib/portfolio/service";
 
+// Prisma access is not a Next.js request API, so opt out of build-time prerendering.
 export const dynamic = "force-dynamic";
 
 export default async function Home() {

@@ -21,7 +21,7 @@ const rangeDays: Record<Range, number> = {
 interface PortfolioChartProps {
   hasTransactions: boolean;
   recordedSnapshotCount: number;
-  snapshots: { timestamp: string; portfolioValueChf: number }[];
+  snapshots: { timestamp: string; totalPnlChf: number }[];
 }
 
 export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapshots }: PortfolioChartProps) {
@@ -40,22 +40,22 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
     }));
   }, [range, snapshots]);
 
-  const first = data.at(0)?.portfolioValueChf ?? 0;
-  const last = data.at(-1)?.portfolioValueChf ?? 0;
+  const first = data.at(0)?.totalPnlChf ?? 0;
+  const last = data.at(-1)?.totalPnlChf ?? 0;
   const change = last - first;
   const hasTrend = data.length >= 2 && recordedSnapshotCount >= 2;
 
   return (
     <section className="panel chart-panel">
       <div className="section-heading chart-heading">
-        <div><p>Portfolio value</p><h2>{range === "ALL" ? "All recorded history" : `Performance · ${range}`}</h2></div>
+        <div><p>Total P&amp;L</p><h2>{range === "ALL" ? "All recorded history" : `Performance · ${range}`}</h2></div>
         <div className="range-tabs" aria-label="Chart time range">
           {ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} onClick={() => setRange(item)} type="button">{item}</button>)}
         </div>
       </div>
       {hasTrend ? (
         <>
-          <div className="chart-delta"><span className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}</span><small>change in portfolio value over selected period</small></div>
+          <div className="chart-delta"><span className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}</span><small>change in total P&amp;L over selected period</small></div>
           <div className="chart-wrap">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={{ top: 10, right: 6, left: 6, bottom: 0 }}>
@@ -67,21 +67,24 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
                 </defs>
                 <CartesianGrid vertical={false} stroke="var(--line)" strokeDasharray="3 5" />
                 <XAxis dataKey="dateLabel" axisLine={false} tickLine={false} minTickGap={40} tick={{ fill: "var(--muted)", fontSize: 11 }} />
-                <YAxis hide domain={["dataMin - 500", "dataMax + 400"]} />
+                <YAxis hide domain={([minimum, maximum]: readonly [number, number]) => {
+                  const padding = Math.max((maximum - minimum) * 0.12, 10);
+                  return [minimum - padding, maximum + padding];
+                }} />
                 <Tooltip
                   contentStyle={{ background: "var(--surface-strong)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "var(--shadow)" }}
-                  formatter={(value) => [formatChf(Number(value)), "Portfolio"]}
+                  formatter={(value) => [formatChf(Number(value), { signed: true }), "Total P&L"]}
                   labelStyle={{ color: "var(--muted)", fontSize: 11, marginBottom: 4 }}
                 />
-                <Area type="monotone" dataKey="portfolioValueChf" stroke="var(--chart)" strokeWidth={2.5} fill="url(#portfolioFill)" activeDot={{ r: 4, fill: "var(--chart)", strokeWidth: 0 }} />
+                <Area type="monotone" dataKey="totalPnlChf" stroke="var(--chart)" strokeWidth={2.5} fill="url(#portfolioFill)" activeDot={{ r: 4, fill: "var(--chart)", strokeWidth: 0 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </>
       ) : (
-        <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div>{hasTransactions ? <><strong>Performance history starts here at {formatChf(last)}</strong><p>PersPort now records the real portfolio value after every import or sync. One more recorded snapshot is needed to draw a trend.</p></> : <><strong>No portfolio history yet</strong><p>Add or import a transaction to start tracking portfolio performance.</p></>}</div></div>
+        <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div>{hasTransactions ? <><strong>Performance history starts here at {formatChf(last, { signed: true })}</strong><p>PersPort records total P&amp;L after every import or sync. One more recorded snapshot is needed to draw a trend.</p></> : <><strong>No portfolio history yet</strong><p>Add or import a transaction to start tracking portfolio performance.</p></>}</div></div>
       )}
-      <p className="chart-note">The latest point matches the current portfolio. Value changes include deposits and withdrawals; contribution-adjusted returns are not available yet.</p>
+      <p className="chart-note">Total P&amp;L is unrealized plus realized gain or loss, so deposits and withdrawals do not appear as performance. History is limited to recorded imports and syncs.</p>
     </section>
   );
 }

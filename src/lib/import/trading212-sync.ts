@@ -197,22 +197,22 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
       }, 0);
       const totalValue = quantity * executionPrice;
       const transactionData = {
-          brokerAccountId: brokerAccount.id,
-          securityId: security.id,
-          type: order.order.side,
-          timestamp: occurredAt,
-          quantity,
-          executionPrice,
-          transactionCurrency: order.order.instrument.currency,
-          fxRateToChf,
-          fee: feeChf / fxRateToChf,
-          feeChf,
-          totalValue,
-          totalValueChf: totalValue * fxRateToChf,
-          notes: `Trading 212 order ${order.order.id}`,
-          importSource: "TRADING212",
-          externalId,
-          importFingerprint,
+        brokerAccountId: brokerAccount.id,
+        securityId: security.id,
+        type: order.order.side,
+        timestamp: occurredAt,
+        quantity,
+        executionPrice,
+        transactionCurrency: order.order.instrument.currency,
+        fxRateToChf,
+        fee: feeChf / fxRateToChf,
+        feeChf,
+        totalValue,
+        totalValueChf: totalValue * fxRateToChf,
+        notes: `Trading 212 order ${order.order.id}`,
+        importSource: "TRADING212",
+        externalId,
+        importFingerprint,
       };
       const existing = existingByExternalId.get(externalId) ?? existingByFingerprint.get(importFingerprint);
       if (existing) {
