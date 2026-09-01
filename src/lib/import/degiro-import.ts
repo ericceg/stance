@@ -77,6 +77,8 @@ export async function importDegiroCsv(input: {
           ticker: row.brokerSymbol,
           name: row.product,
           tradingCurrency: row.transactionCurrency,
+          assetType: row.product?.toUpperCase().includes("ETF") ? "ETF" : null,
+          authoritativeTradingCurrency: row.type === "BUY" || row.type === "SELL",
         });
         securityId = security.id;
       }

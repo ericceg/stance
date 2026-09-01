@@ -49,6 +49,29 @@ describe("DEGIRO CSV parser", () => {
     expect(result.rows[0].totalValueChf).toBe(940);
   });
 
+  it("extracts priced trades and their CHF conversion from an account statement", () => {
+    const csv = [
+      '"Date","Time","Value date","Product","ISIN","Description","FX","Change","","Balance","","Order Id"',
+      '"29-07-2026","17:17","29-07-2026","ETF","IE00BKM4GZ66","Währungswechsel (Einbuchung)","1.0689","EUR","189.12","EUR","0.00","order-1"',
+      '"29-07-2026","17:17","29-07-2026","ETF","IE00BKM4GZ66","Währungswechsel (Ausbuchung)","","CHF","-176.93","CHF","904.53","order-1"',
+      '"29-07-2026","17:17","29-07-2026","ETF","IE00BKM4GZ66","DEGIRO Transaktionsgebühren und/oder Fremdkosten","","CHF","-0.47","CHF","1081.46","order-1"',
+      '"29-07-2026","17:17","29-07-2026","ETF","IE00BKM4GZ66","Kauf 12 zu je 15.76 EUR (IE00BKM4GZ66)","","EUR","-189.12","EUR","-189.12","order-1"',
+    ].join("\n");
+
+    const result = parseDegiroCsv(csv, { accountBaseCurrency: "CHF" });
+    expect(result.rows).toHaveLength(2);
+    expect(result.ignoredRows).toBe(2);
+    expect(result.rows[1]).toMatchObject({
+      type: "BUY",
+      quantity: 12,
+      executionPrice: 15.76,
+      transactionCurrency: "EUR",
+      totalValue: 189.12,
+      totalValueChf: 176.93,
+    });
+    expect(result.rows[1].fxRateToChf).toBeCloseTo(176.93 / 189.12);
+  });
+
   it("accepts older account exports with the amount before its currency", () => {
     const csv = [
       '"Date","Time","Description","Change",""',

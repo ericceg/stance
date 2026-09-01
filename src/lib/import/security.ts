@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma, Security } from "@prisma/client";
 
 export interface ImportedSecurityIdentity {
   source: string;
@@ -12,6 +12,7 @@ export interface ImportedSecurityIdentity {
   name: string | null;
   tradingCurrency: string;
   assetType?: string | null;
+  authoritativeTradingCurrency?: boolean;
 }
 
 function fallbackTicker(identity: ImportedSecurityIdentity) {
@@ -25,6 +26,24 @@ function supportedAssetType(value: string | null | undefined) {
   return "OTHER";
 }
 
+async function reconcileImportedSecurity(
+  tx: Prisma.TransactionClient,
+  security: Security,
+  identity: ImportedSecurityIdentity,
+) {
+  const importedAssetType = supportedAssetType(identity.assetType);
+  const assetType = security.assetType === "OTHER" ? importedAssetType : security.assetType;
+  const tradingCurrency = identity.authoritativeTradingCurrency
+    && security.marketDataProvider === identity.source
+    ? identity.tradingCurrency
+    : security.tradingCurrency;
+  if (security.assetType === assetType && security.tradingCurrency === tradingCurrency) return security;
+  return tx.security.update({
+    where: { id: security.id },
+    data: { assetType, tradingCurrency },
+  });
+}
+
 export async function resolveImportedSecurity(
   tx: Prisma.TransactionClient,
   identity: ImportedSecurityIdentity,
@@ -35,7 +54,7 @@ export async function resolveImportedSecurity(
       where: { source_brokerSymbol: { source: identity.source, brokerSymbol } },
       include: { security: true },
     });
-    if (alias) return alias.security;
+    if (alias) return reconcileImportedSecurity(tx, alias.security, identity);
   }
 
   const isin = identity.isin?.trim().toUpperCase() || null;
@@ -53,6 +72,8 @@ export async function resolveImportedSecurity(
         marketDataProvider: identity.source,
       },
     });
+  } else {
+    security = await reconcileImportedSecurity(tx, security, identity);
   }
 
   if (brokerSymbol) {

@@ -327,6 +327,31 @@ function classifyAccountRow(descriptionValue: string, amount: number): Transacti
   return null;
 }
 
+function parseAccountTrade(description: string): {
+  type: "BUY" | "SELL";
+  quantity: number;
+  executionPrice: number;
+  currency: string;
+} | null {
+  const action = normalizeHeader(description.trim().split(/\s+/, 1)[0] ?? "");
+  const type = ["buy", "kauf", "koop", "acquisto"].includes(action)
+    ? "BUY"
+    : ["sell", "verkauf", "verkoop", "vendita"].includes(action)
+      ? "SELL"
+      : null;
+  if (!type) return null;
+
+  const currencyMatch = description.match(/\b([A-Z]{3})\b/);
+  if (!currencyMatch || currencyMatch.index === undefined) return null;
+  const numericPart = description.slice(0, currencyMatch.index);
+  const values = numericPart.match(/[+-]?\d+(?:[.,]\d+)?/g) ?? [];
+  const quantity = Math.abs(parseLocalizedNumber(values[0]) ?? 0);
+  const executionPrice = Math.abs(parseLocalizedNumber(values[1]) ?? 0);
+  if (quantity <= 0 || executionPrice <= 0) return null;
+
+  return { type, quantity, executionPrice, currency: currencyMatch[1] };
+}
+
 function accountStatement(
   matrix: string[][],
   options: Required<DegiroParseOptions>,
@@ -349,26 +374,58 @@ function accountStatement(
   const warnings: string[] = [];
   let ignoredRows = 0;
 
-  records.forEach((record, recordIndex) => {
-    const rowNumber = recordIndex + 2;
-    const occurredAt = parseTimestamp(cell(record, columns.date), cell(record, columns.time));
+  const accountRecords = records.map((record, recordIndex) => {
     const { amount, currency } = accountAmountAndCurrency(
       record,
       columns.change,
       options.accountBaseCurrency,
     );
-    const description = cell(record, columns.description);
-    const type = amount === null ? null : classifyAccountRow(description, amount);
+    return {
+      record,
+      rowNumber: recordIndex + 2,
+      occurredAt: parseTimestamp(cell(record, columns.date), cell(record, columns.time)),
+      description: cell(record, columns.description),
+      amount,
+      currency,
+      orderId: cell(record, columns.orderId),
+    };
+  });
+
+  const chfConversionByOrderId = new Map<string, number>();
+  accountRecords.forEach((entry) => {
+    if (
+      entry.orderId
+      && entry.currency === "CHF"
+      && entry.amount !== null
+      && includesPattern(normalizeHeader(entry.description), DESCRIPTION_PATTERNS.internal)
+    ) {
+      chfConversionByOrderId.set(entry.orderId, Math.abs(entry.amount));
+    }
+  });
+
+  accountRecords.forEach(({ record, rowNumber, occurredAt, description, amount, currency, orderId }) => {
+    const trade = parseAccountTrade(description);
+    const type = trade?.type ?? (amount === null ? null : classifyAccountRow(description, amount));
     if (!occurredAt || amount === null || amount === 0 || !type) {
       ignoredRows += 1;
       return;
     }
 
-    const fxRateToChf = currency === "CHF" ? 1 : options.accountToChfRate;
     const totalValue = Math.abs(amount);
+    const transactionCurrency = trade?.currency ?? currency;
+    if (trade && transactionCurrency !== currency) {
+      warnings.push(`Row ${rowNumber} was skipped because its trade and cash currencies do not match.`);
+      ignoredRows += 1;
+      return;
+    }
+    const convertedValueChf = orderId ? chfConversionByOrderId.get(orderId) : undefined;
+    const fxRateToChf = transactionCurrency === "CHF"
+      ? 1
+      : trade && convertedValueChf
+        ? convertedValueChf / totalValue
+        : options.accountToChfRate;
     const product = cell(record, columns.product);
     const isin = cell(record, columns.isin).toUpperCase();
-    const orderId = cell(record, columns.orderId);
     rows.push({
       rowNumber,
       externalId: orderId || null,
@@ -377,9 +434,9 @@ function accountStatement(
       product: product || null,
       isin: isin || null,
       brokerSymbol: makeBrokerSymbol("", isin, product),
-      quantity: null,
-      executionPrice: null,
-      transactionCurrency: currency,
+      quantity: trade?.quantity ?? null,
+      executionPrice: trade?.executionPrice ?? null,
+      transactionCurrency,
       fxRateToChf,
       fee: type === "FEE" ? totalValue : 0,
       feeChf: type === "FEE" ? totalValue * fxRateToChf : 0,
