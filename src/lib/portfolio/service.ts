@@ -170,10 +170,6 @@ export async function getDashboardData() {
         : quoteProviders[0] === "YAHOO"
           ? "Yahoo Finance"
         : quoteProviders[0];
-  const importedDataStartedAt = data.transactions.reduce<Date | null>((earliest, transaction) => {
-    if (transaction.importSource === null) return earliest;
-    return earliest === null || transaction.createdAt < earliest ? transaction.createdAt : earliest;
-  }, null);
   const history = buildPortfolioHistory({
     snapshots: data.snapshots.map((snapshot) => ({
       timestamp: snapshot.timestamp,
@@ -191,7 +187,6 @@ export async function getDashboardData() {
       realizedPnlChf: data.summary.realizedPnlChf,
     },
     hasTransactions: data.transactions.length > 0,
-    importedDataStartedAt,
   });
 
   return {

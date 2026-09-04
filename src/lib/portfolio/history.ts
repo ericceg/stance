@@ -20,14 +20,9 @@ export function buildPortfolioHistory(input: {
   snapshots: RecordedPortfolioSnapshot[];
   current: Omit<RecordedPortfolioSnapshot, "timestamp">;
   hasTransactions: boolean;
-  importedDataStartedAt: Date | null;
   currentTimestamp?: Date;
 }) {
-  const trustedSnapshots = !input.hasTransactions
-    ? []
-    : input.importedDataStartedAt === null
-    ? input.snapshots
-    : input.snapshots.filter((snapshot) => snapshot.timestamp >= input.importedDataStartedAt!);
+  const trustedSnapshots = input.hasTransactions ? input.snapshots : [];
   const dailySnapshots = [...trustedSnapshots.reduce((byDay, snapshot) => {
     byDay.set(snapshot.timestamp.toISOString().slice(0, 10), snapshot);
     return byDay;

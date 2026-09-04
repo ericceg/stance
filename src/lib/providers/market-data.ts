@@ -24,6 +24,17 @@ const yahooChartSchema = z.object({
     })).nullable(),
   }),
 });
+const yahooHistorySchema = z.object({
+  chart: z.object({
+    result: z.array(z.object({
+      meta: z.object({ currency: z.string().min(3) }),
+      timestamp: z.array(z.number()).optional().default([]),
+      indicators: z.object({
+        quote: z.array(z.object({ close: z.array(z.number().positive().nullable()) })),
+      }),
+    })).nullable(),
+  }),
+});
 
 async function fetchYahooJson(url: URL): Promise<unknown> {
   const response = await fetch(url, {
@@ -147,8 +158,42 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
     return results.filter((quote): quote is QuoteRecord => quote !== null);
   }
 
-  async getHistoricalPrices() {
-    return [];
+  private async fetchHistoricalPrices(symbol: string, range: HistoricalRange) {
+    const url = new URL(`/v8/finance/chart/${encodeURIComponent(symbol)}`, YAHOO_API_URL);
+    url.searchParams.set("period1", String(Math.floor(range.from.getTime() / 1_000)));
+    url.searchParams.set("period2", String(Math.floor(range.to.getTime() / 1_000)));
+    url.searchParams.set("interval", range.interval === "DAY" ? "1d" : range.interval === "WEEK" ? "1wk" : "1mo");
+    url.searchParams.set("events", "history");
+    const parsed = yahooHistorySchema.safeParse(await fetchYahooJson(url));
+    const result = parsed.success ? parsed.data.chart.result?.[0] : null;
+    if (!result) return [];
+    const currency = yahooCurrency(result.meta.currency);
+    const closes = result.indicators.quote[0]?.close ?? [];
+    return result.timestamp.flatMap((timestamp, index) => {
+      const close = closes[index];
+      if (close === null || close === undefined) return [];
+      return [{ timestamp: new Date(timestamp * 1_000), price: close * currency.scale, currency: currency.code }];
+    });
+  }
+
+  async getHistoricalPrices(security: SecurityRecord, range: HistoricalRange) {
+    const resolved = await this.getResolvedQuote(security);
+    if (!resolved) return [];
+    const primary = await this.fetchHistoricalPrices(resolved.symbol, range);
+    if (primary.length > 0) return primary;
+
+    // A thinly traded regional listing may have a current quote but no candle
+    // history. Another listing of the same ISIN still represents the same fund.
+    for (const symbol of await this.searchSymbols(security)) {
+      if (symbol === resolved.symbol) continue;
+      try {
+        const prices = await this.fetchHistoricalPrices(symbol, range);
+        if (prices.length > 0) return prices;
+      } catch {
+        // Continue through alternate listings returned for the same security.
+      }
+    }
+    throw new Error(`Yahoo Finance returned no price history for ${resolved.symbol}.`);
   }
 
   async getFxRate(fromCurrency: string, toCurrency: string) {

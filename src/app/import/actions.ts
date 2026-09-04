@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { importDegiroCsv, type DegiroImportReport } from "@/lib/import/degiro-import";
 import { syncTrading212, type Trading212SyncReport } from "@/lib/import/trading212-sync";
 import { refreshOpenPositionQuotes } from "@/lib/portfolio/market-data-sync";
+import { rebuildPortfolioHistory } from "@/lib/portfolio/history-rebuild";
 import { recordCurrentPortfolioSnapshot } from "@/lib/portfolio/service";
 
 export interface DegiroImportState {
@@ -23,6 +24,20 @@ const degiroFieldsSchema = z.object({
   accountName: z.string().trim().min(1).max(80),
   baseCurrency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
 });
+
+async function rebuildHistoryAfterImport() {
+  try {
+    const report = await rebuildPortfolioHistory();
+    return report.warnings;
+  } catch (error) {
+    console.error("Portfolio history rebuild failed", error);
+    await prisma.portfolioSnapshot.deleteMany();
+    await recordCurrentPortfolioSnapshot();
+    return [error instanceof Error
+      ? `Historical performance could not be rebuilt: ${error.message}`
+      : "Historical performance could not be rebuilt."];
+  }
+}
 
 export async function importDegiroAction(
   _previousState: DegiroImportState,
@@ -62,12 +77,12 @@ export async function importDegiroAction(
       csv: await file.text(),
     });
     const quoteReport = await refreshOpenPositionQuotes();
-    await recordCurrentPortfolioSnapshot();
+    const historyWarnings = await rebuildHistoryAfterImport();
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
     revalidatePath("/import");
-    return { report: { ...report, quotesUpdated: quoteReport.updated, warnings: [...report.warnings, ...quoteReport.warnings] } };
+    return { report: { ...report, quotesUpdated: quoteReport.updated, warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings] } };
   } catch (error) {
     console.error("DEGIRO import failed", error);
     return { error: error instanceof Error ? error.message : "The DEGIRO statement could not be imported." };
@@ -82,12 +97,12 @@ export async function syncTrading212Action(
   void _formData;
   try {
     const report = await syncTrading212();
-    await recordCurrentPortfolioSnapshot();
+    const historyWarnings = await rebuildHistoryAfterImport();
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
     revalidatePath("/import");
-    return { report };
+    return { report: { ...report, warnings: [...report.warnings, ...historyWarnings] } };
   } catch (error) {
     console.error("Trading 212 sync failed", error);
     return { error: error instanceof Error ? error.message : "Trading 212 could not be synchronized." };
