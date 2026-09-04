@@ -42,15 +42,17 @@ export async function rebuildPortfolioHistory(currentTimestamp = new Date()): Pr
   // infrequent, so resolve securities sequentially for a complete data set.
   for (const security of securities) {
     const securityTransactions = portfolio.accountingTransactions.filter((transaction) => transaction.securityId === security.id);
-    const latestTrade = securityTransactions.findLast((transaction) => transaction.type === "BUY" || transaction.type === "SELL");
     const firstTrade = securityTransactions.find((transaction) => transaction.type === "BUY" || transaction.type === "SELL");
     if (!firstTrade) {
       priceResults.push({ securityId: security.id, prices: [] });
       continue;
     }
     try {
+      // Symbol resolution must use the instrument's canonical quote currency.
+      // A transaction may settle in the broker account currency, which is not
+      // necessarily the currency of the traded listing.
       const prices = await provider.getHistoricalPrices(
-        { ...security, tradingCurrency: latestTrade?.transactionCurrency ?? security.tradingCurrency },
+        security,
         { from: firstTrade.timestamp, to: tomorrow, interval: "DAY" },
       );
       priceResults.push({ securityId: security.id, prices });

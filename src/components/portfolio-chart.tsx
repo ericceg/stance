@@ -27,14 +27,19 @@ type ChartPoint = PortfolioChartProps["snapshots"][number] & {
 function axisLabel(timestamp: number, range: Range) {
   const date = new Date(timestamp);
   if (range === "1D") return new Intl.DateTimeFormat("en-CH", { hour: "2-digit", minute: "2-digit" }).format(date);
-  if (range === "1W" || range === "1M") return new Intl.DateTimeFormat("en-CH", { day: "2-digit", month: "short" }).format(date);
+  if (range === "1W" || range === "1M") return new Intl.DateTimeFormat("en-CH", { day: "2-digit", month: "short", timeZone: "UTC" }).format(date);
   return formatChartDate(date);
 }
 
-function tooltipDate(timestamp: string) {
+function tooltipDate(point: ChartPoint) {
+  if (point.source === "HISTORICAL_CLOSE") {
+    return `${new Intl.DateTimeFormat("en-CH", {
+      weekday: "short", day: "2-digit", month: "short", year: "numeric", timeZone: "UTC",
+    }).format(new Date(point.timestamp))} · Market close`;
+  }
   return new Intl.DateTimeFormat("en-CH", {
     weekday: "short", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  }).format(new Date(timestamp));
+  }).format(new Date(point.timestamp));
 }
 
 export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapshots }: PortfolioChartProps) {
@@ -56,7 +61,8 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
 
   const first = data.at(0)?.displayValue ?? 0;
   const last = data.at(-1)?.displayValue ?? 0;
-  const displayedValue = displayPoint?.displayValue ?? last;
+  const chartValue = data.at(-1)?.displayValue ?? displayPoint?.displayValue ?? 0;
+  const liveEstimate = displayPoint?.source === "LIVE_ESTIMATE" ? displayPoint.displayValue : null;
   const change = last - first;
   const low = data.reduce((value, point) => Math.min(value, point.displayValue), last);
   const high = data.reduce((value, point) => Math.max(value, point.displayValue), last);
@@ -70,10 +76,11 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
         <div className="terminal-chart-title">
           <div className="terminal-kicker"><Activity aria-hidden="true" /> Performance</div>
           <div className="terminal-value-row">
-            <strong>{formatChf(displayedValue, { signed: metric === "pnl" })}</strong>
+            <strong>{formatChf(chartValue, { signed: metric === "pnl" })}</strong>
             <span className={change >= 0 ? "positive" : "negative"}>{change >= 0 ? <TrendingUp aria-hidden="true" /> : <TrendingDown aria-hidden="true" />}{formatChf(change, { signed: true })}</span>
           </div>
-          <p>{displayPoint?.source === "LIVE_ESTIMATE" ? `${label} · live estimate (not plotted)` : `${label} · ${rangeLabel}`}</p>
+          <p>{label} · {rangeLabel}</p>
+          {liveEstimate !== null ? <div className="terminal-live-estimate"><span>Live estimate</span><strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong><small>mixed quotes · not plotted</small></div> : null}
         </div>
         <div className="terminal-chart-controls">
           <div className="metric-tabs" aria-label="Chart metric">
@@ -101,7 +108,7 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
               <XAxis type="number" dataKey="time" scale="time" domain={["dataMin", "dataMax"]} axisLine={false} tickLine={false} tickCount={range === "1D" ? 8 : 7} tickFormatter={(value) => axisLabel(value, range)} tick={{ fill: "var(--muted)", fontSize: 10 }} />
               <YAxis width={44} orientation="right" axisLine={false} tickLine={false} tickCount={5} tickFormatter={(value) => formatChf(value).replace("CHF ", "")} tick={{ fill: "var(--muted)", fontFamily: "var(--font-geist-mono)", fontSize: 9 }} domain={([minimum, maximum]: readonly [number, number]) => { const padding = Math.max((maximum - minimum) * 0.12, 10); return [minimum - padding, maximum + padding]; }} />
               {metric === "pnl" ? <ReferenceLine y={0} stroke="var(--line-strong)" strokeDasharray="3 4" /> : null}
-              <Tooltip cursor={{ stroke: "var(--chart)", strokeOpacity: 0.55, strokeDasharray: "3 4" }} content={({ active, payload }) => { const point = payload?.[0]?.payload as ChartPoint | undefined; return active && point ? <div className="terminal-tooltip"><span>{tooltipDate(point.timestamp)}</span><strong>{formatChf(point.displayValue, { signed: metric === "pnl" })}</strong><small>{point.isLive ? "Live portfolio value" : "Recorded snapshot"}</small></div> : null; }} />
+              <Tooltip cursor={{ stroke: "var(--chart)", strokeOpacity: 0.55, strokeDasharray: "3 4" }} content={({ active, payload }) => { const point = payload?.[0]?.payload as ChartPoint | undefined; return active && point ? <div className="terminal-tooltip"><span>{tooltipDate(point)}</span><strong>{formatChf(point.displayValue, { signed: metric === "pnl" })}</strong><small>{point.source === "HISTORICAL_CLOSE" ? "Historical closing valuation" : "Comparable intraday snapshot"}</small></div> : null; }} />
               <Area type="linear" dataKey="displayValue" stroke="var(--chart)" strokeWidth={2.25} fill="url(#portfolioTerminalFill)" activeDot={{ r: 4, fill: "var(--surface-strong)", stroke: "var(--chart)", strokeWidth: 2 }} />
             </AreaChart>
           </ResponsiveContainer>
