@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconstructDailyPortfolioSnapshots, type HistoricalValuationPoint } from "./history-reconstruction";
+import { reconstructDailyPortfolioSnapshots, reconstructIntradayPortfolioSnapshots, type HistoricalValuationPoint } from "./history-reconstruction";
 import type { AccountingTransaction, BrokerAccountRecord, SecurityRecord, TransactionType } from "./types";
 
 const account: BrokerAccountRecord = { id: "account", brokerName: "Broker", accountName: "Main", baseCurrency: "CHF" };
@@ -57,5 +57,28 @@ describe("historical portfolio reconstruction", () => {
 
     expect(result.snapshots).toEqual([]);
     expect(result.skippedDays).toBe(1);
+  });
+
+  it("revalues the portfolio at every available intraday market timestamp", () => {
+    const transactions = [
+      transaction({ id: "deposit", type: "DEPOSIT", timestamp: "2026-09-04T07:00:00Z", totalValue: 1_000, totalValueChf: 1_000 }),
+      transaction({ id: "buy", type: "BUY", timestamp: "2026-09-04T07:30:00Z", securityId: security.id, quantity: 10, executionPrice: 80, totalValue: 800, totalValueChf: 800 }),
+    ];
+    const result = reconstructIntradayPortfolioSnapshots({
+      transactions,
+      securities: [security],
+      brokerAccounts: [account],
+      valuations: [
+        valuation("2026-09-04T07:30:00Z", 80),
+        valuation("2026-09-04T07:31:00Z", 81),
+        valuation("2026-09-04T07:32:00Z", 82),
+      ],
+      timestamps: [new Date("2026-09-04T07:31:00Z"), new Date("2026-09-04T07:32:00Z")],
+    });
+
+    expect(result.skippedPoints).toBe(0);
+    expect(result.snapshots).toHaveLength(2);
+    expect(result.snapshots.map((snapshot) => snapshot.unrealizedPnlChf)).toEqual([10, 20]);
+    expect(result.snapshots.every((snapshot) => snapshot.source === "INTRADAY_COMPARABLE")).toBe(true);
   });
 });

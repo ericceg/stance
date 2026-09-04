@@ -59,7 +59,7 @@ export interface HistoricalPrice {
 export interface HistoricalRange {
   from: Date;
   to: Date;
-  interval: "DAY" | "WEEK" | "MONTH";
+  interval: "MINUTE" | "DAY" | "WEEK" | "MONTH";
 }
 
 export interface MarketDataProvider {
@@ -162,7 +162,7 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
     const url = new URL(`/v8/finance/chart/${encodeURIComponent(symbol)}`, YAHOO_API_URL);
     url.searchParams.set("period1", String(Math.floor(range.from.getTime() / 1_000)));
     url.searchParams.set("period2", String(Math.floor(range.to.getTime() / 1_000)));
-    url.searchParams.set("interval", range.interval === "DAY" ? "1d" : range.interval === "WEEK" ? "1wk" : "1mo");
+    url.searchParams.set("interval", range.interval === "MINUTE" ? "1m" : range.interval === "DAY" ? "1d" : range.interval === "WEEK" ? "1wk" : "1mo");
     url.searchParams.set("events", "history");
     const parsed = yahooHistorySchema.safeParse(await fetchYahooJson(url));
     const result = parsed.success ? parsed.data.chart.result?.[0] : null;

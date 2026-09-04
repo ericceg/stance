@@ -123,6 +123,29 @@ describe("YahooFinanceMarketDataProvider", () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain("interval=1d");
   });
 
+  it("requests one-minute candles for intraday portfolio history", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        chart: { result: [{ meta: { currency: "CHF", regularMarketPrice: 102 } }] },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        chart: { result: [{
+          meta: { currency: "CHF" },
+          timestamp: [1_788_220_800, 1_788_220_860],
+          indicators: { quote: [{ close: [100, 100.25] }] },
+        }] },
+      })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new YahooFinanceMarketDataProvider({ getCurrentRateToChf: vi.fn().mockResolvedValue(1) }).getHistoricalPrices(
+      { ...security, marketDataTicker: "TEST.SW" },
+      { from: new Date("2026-08-31T00:00:00Z"), to: new Date("2026-09-01T00:00:00Z"), interval: "MINUTE" },
+    );
+
+    expect(result).toHaveLength(2);
+    expect(String(fetchMock.mock.calls[1][0])).toContain("interval=1m");
+  });
+
   it("uses another listing of the same security when the preferred listing has no history", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
