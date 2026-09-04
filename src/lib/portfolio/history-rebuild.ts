@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
-import { YahooFinanceMarketDataProvider } from "@/lib/providers/market-data";
+import { YahooFinanceMarketDataProvider, type HistoricalPrice } from "@/lib/providers/market-data";
 import { fxRateProvider, historicalFxKey, type HistoricalFxRequest } from "@/lib/providers/fx";
 import { reconstructDailyPortfolioSnapshots, type HistoricalValuationPoint } from "./history-reconstruction";
 import { loadPortfolio } from "./service";
@@ -37,22 +37,28 @@ export async function rebuildPortfolioHistory(currentTimestamp = new Date()): Pr
   ));
   const warnings: string[] = [];
 
-  const priceResults = await Promise.all(securities.map(async (security) => {
+  const priceResults: Array<{ securityId: string; prices: HistoricalPrice[] }> = [];
+  // Yahoo throttles bursts of chart/search requests. Historical rebuilding is
+  // infrequent, so resolve securities sequentially for a complete data set.
+  for (const security of securities) {
     const securityTransactions = portfolio.accountingTransactions.filter((transaction) => transaction.securityId === security.id);
     const latestTrade = securityTransactions.findLast((transaction) => transaction.type === "BUY" || transaction.type === "SELL");
     const firstTrade = securityTransactions.find((transaction) => transaction.type === "BUY" || transaction.type === "SELL");
-    if (!firstTrade) return { securityId: security.id, prices: [] };
+    if (!firstTrade) {
+      priceResults.push({ securityId: security.id, prices: [] });
+      continue;
+    }
     try {
       const prices = await provider.getHistoricalPrices(
         { ...security, tradingCurrency: latestTrade?.transactionCurrency ?? security.tradingCurrency },
         { from: firstTrade.timestamp, to: tomorrow, interval: "DAY" },
       );
-      return { securityId: security.id, prices };
+      priceResults.push({ securityId: security.id, prices });
     } catch (error) {
       warnings.push(`${security.name}: ${error instanceof Error ? error.message : "Historical prices are unavailable."}`);
-      return { securityId: security.id, prices: [] };
+      priceResults.push({ securityId: security.id, prices: [] });
     }
-  }));
+  }
 
   const historicalFxRequests: HistoricalFxRequest[] = priceResults.flatMap((result) => result.prices.map((price) => ({
     currency: price.currency,

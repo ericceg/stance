@@ -49,6 +49,20 @@ describe("DEGIRO CSV parser", () => {
     expect(result.rows[0].totalValueChf).toBeNull();
   });
 
+  it("imports DEGIRO capital repayments, rebates, and exchange-access fees", () => {
+    const csv = [
+      '"Date","Time","Description","Change",""',
+      '"24-07-2026","07:08","Kapitalrückzahlung","CHF","5.04"',
+      '"23-04-2024","06:54","Rabatt für Aktion","EUR","4.00"',
+      '"04-08-2026","14:22","Einrichtung von Handelsmodalitäten 2026 (Societe Generale OTC - SCG)","EUR","-2.50"',
+    ].join("\n");
+
+    const result = parseDegiroCsv(csv, { accountBaseCurrency: "CHF" });
+
+    expect(result.rows.map((row) => row.type)).toEqual(["DIVIDEND", "DIVIDEND", "FEE"]);
+    expect(result.ignoredRows).toBe(0);
+  });
+
   it("extracts priced trades and their CHF conversion from an account statement", () => {
     const csv = [
       '"Date","Time","Value date","Product","ISIN","Description","FX","Change","","Balance","","Order Id"',

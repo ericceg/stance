@@ -156,9 +156,11 @@ export async function getDashboardData() {
     .filter((item) => item.value > 0.005)
     .sort((left, right) => right.value - left.value);
 
-  const latestQuoteTimestamp = positions.reduce<string | null>((latest, position) => {
-    if (!position.quote) return latest;
-    return latest === null || position.quote.quotedAt > latest ? position.quote.quotedAt : latest;
+  // A portfolio is only as current as its oldest open-position quote. Using the
+  // newest timestamp lets one live broker quote mask stale prices elsewhere.
+  const portfolioQuoteTimestamp = positions.reduce<string | null>((oldest, position) => {
+    if (!position.quote) return oldest;
+    return oldest === null || position.quote.quotedAt < oldest ? position.quote.quotedAt : oldest;
   }, null);
   const quoteProviders = [...new Set(positions.flatMap((position) => position.quote ? [position.quote.provider] : []))];
   const quoteProviderLabel = quoteProviders.length === 0
@@ -213,7 +215,7 @@ export async function getDashboardData() {
       currency: toAllocation(currencyAllocation),
       broker: toAllocation(brokerAllocation),
     },
-    updatedAt: latestQuoteTimestamp,
+    updatedAt: portfolioQuoteTimestamp,
     quoteProviderLabel,
   };
 }

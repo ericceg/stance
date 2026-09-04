@@ -13,7 +13,16 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const data = await getDashboardData();
   const updatedAt = data.updatedAt ? new Date(data.updatedAt) : null;
-  const quoteLabel = updatedAt ? new Intl.DateTimeFormat("en-CH", { hour: "2-digit", minute: "2-digit" }).format(updatedAt) : "Unavailable";
+  const today = new Date();
+  const quoteIsToday = updatedAt !== null
+    && updatedAt.getFullYear() === today.getFullYear()
+    && updatedAt.getMonth() === today.getMonth()
+    && updatedAt.getDate() === today.getDate();
+  const quoteLabel = updatedAt
+    ? new Intl.DateTimeFormat("en-CH", quoteIsToday
+      ? { hour: "2-digit", minute: "2-digit" }
+      : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(updatedAt)
+    : "Unavailable";
   const todayLabel = new Intl.DateTimeFormat("en-CH", { weekday: "long", day: "2-digit", month: "long" }).format(new Date()).toUpperCase();
 
   return (

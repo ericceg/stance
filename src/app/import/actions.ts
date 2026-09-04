@@ -97,12 +97,19 @@ export async function syncTrading212Action(
   void _formData;
   try {
     const report = await syncTrading212();
+    const quoteReport = await refreshOpenPositionQuotes();
     const historyWarnings = await rebuildHistoryAfterImport();
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
     revalidatePath("/import");
-    return { report: { ...report, warnings: [...report.warnings, ...historyWarnings] } };
+    return {
+      report: {
+        ...report,
+        quotesUpdated: report.quotesUpdated + quoteReport.updated,
+        warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings],
+      },
+    };
   } catch (error) {
     console.error("Trading 212 sync failed", error);
     return { error: error instanceof Error ? error.message : "Trading 212 could not be synchronized." };
