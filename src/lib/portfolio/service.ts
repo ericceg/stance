@@ -7,6 +7,11 @@ function toNumber(value: { toNumber(): number } | null) {
   return value === null ? null : value.toNumber();
 }
 
+function hasComparableLiveQuotes(positions: Array<{ quantity: number; quote: { provider: string } | null }>) {
+  const openPositions = positions.filter((position) => position.quantity > 1e-9);
+  return openPositions.length > 0 && openPositions.every((position) => position.quote?.provider === "YAHOO");
+}
+
 export async function loadPortfolio() {
   const [securities, brokerAccounts, transactions, quotes, snapshots] = await Promise.all([
     prisma.security.findMany({ orderBy: { name: "asc" } }),
@@ -94,6 +99,8 @@ export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
 export async function recordCurrentPortfolioSnapshot() {
   const data = await loadPortfolio();
+  const isComparableWithHistoricalCloses = hasComparableLiveQuotes(data.summary.positions);
+  if (!isComparableWithHistoricalCloses) return null;
   return prisma.portfolioSnapshot.create({
     data: {
       timestamp: new Date(),
@@ -102,6 +109,7 @@ export async function recordCurrentPortfolioSnapshot() {
       cashChf: data.summary.cashChf,
       unrealizedPnlChf: data.summary.unrealizedPnlChf,
       realizedPnlChf: data.summary.realizedPnlChf,
+      source: "INTRADAY_COMPARABLE",
     },
   });
 }
@@ -180,6 +188,7 @@ export async function getDashboardData() {
       cashChf: snapshot.cashChf.toNumber(),
       unrealizedPnlChf: snapshot.unrealizedPnlChf.toNumber(),
       realizedPnlChf: snapshot.realizedPnlChf.toNumber(),
+      source: snapshot.source as "HISTORICAL_CLOSE" | "INTRADAY_COMPARABLE" | "LIVE_ESTIMATE",
     })),
     current: {
       portfolioValueChf: data.summary.portfolioValueChf,
@@ -189,6 +198,7 @@ export async function getDashboardData() {
       realizedPnlChf: data.summary.realizedPnlChf,
     },
     hasTransactions: data.transactions.length > 0,
+    currentSource: hasComparableLiveQuotes(data.summary.positions) ? "INTRADAY_COMPARABLE" : "LIVE_ESTIMATE",
   });
 
   return {

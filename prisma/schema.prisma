@@ -106,6 +106,7 @@ model PortfolioSnapshot {
   cashChf            Decimal
   unrealizedPnlChf   Decimal
   realizedPnlChf     Decimal
+  source             String   @default("HISTORICAL_CLOSE")
 
   @@index([timestamp])
 }

@@ -86,4 +86,17 @@ describe("portfolio history", () => {
       { portfolioValueChf: 1_000, totalPnlChf: 200 },
     ]);
   });
+
+  it("keeps a mixed live valuation separate from comparable chart history", () => {
+    const history = buildPortfolioHistory({
+      snapshots: [snapshot("2026-09-03T23:59:59.999Z", 1_000)],
+      current: { portfolioValueChf: 1_300, investedCapitalChf: 900, cashChf: 100, unrealizedPnlChf: 275, realizedPnlChf: 25 },
+      currentTimestamp: new Date("2026-09-04T16:00:00Z"),
+      currentSource: "LIVE_ESTIMATE",
+      hasTransactions: true,
+    });
+
+    expect(history.points[0]?.source).toBe("HISTORICAL_CLOSE");
+    expect(history.points.at(-1)).toMatchObject({ isLive: true, source: "LIVE_ESTIMATE", portfolioValueChf: 1_300 });
+  });
 });

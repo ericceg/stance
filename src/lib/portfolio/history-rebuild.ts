@@ -114,20 +114,10 @@ export async function rebuildPortfolioHistory(currentTimestamp = new Date()): Pr
     if (reconstructed.snapshots.length > 0) {
       await tx.portfolioSnapshot.createMany({ data: reconstructed.snapshots });
     }
-    await tx.portfolioSnapshot.create({
-      data: {
-        timestamp: new Date(Math.max(currentTimestamp.getTime(), (reconstructed.snapshots.at(-1)?.timestamp.getTime() ?? 0) + 1)),
-        portfolioValueChf: portfolio.summary.portfolioValueChf,
-        investedCapitalChf: portfolio.summary.investedCapitalChf,
-        cashChf: portfolio.summary.cashChf,
-        unrealizedPnlChf: portfolio.summary.unrealizedPnlChf,
-        realizedPnlChf: portfolio.summary.realizedPnlChf,
-      },
-    });
   }, { timeout: 120_000 });
 
   return {
-    snapshotsCreated: reconstructed.snapshots.length + 1,
+    snapshotsCreated: reconstructed.snapshots.length,
     skippedDays: reconstructed.skippedDays,
     warnings,
   };

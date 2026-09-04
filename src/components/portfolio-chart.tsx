@@ -16,7 +16,7 @@ const rangeDays: Record<Range, number> = {
 interface PortfolioChartProps {
   hasTransactions: boolean;
   recordedSnapshotCount: number;
-  snapshots: { timestamp: string; totalPnlChf: number; portfolioValueChf: number; isLive: boolean }[];
+  snapshots: { timestamp: string; totalPnlChf: number; portfolioValueChf: number; isLive: boolean; source: "HISTORICAL_CLOSE" | "INTRADAY_COMPARABLE" | "LIVE_ESTIMATE" }[];
 }
 
 type ChartPoint = PortfolioChartProps["snapshots"][number] & {
@@ -40,7 +40,7 @@ function tooltipDate(timestamp: string) {
 export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapshots }: PortfolioChartProps) {
   const [range, setRange] = useState<Range>("1M");
   const [metric, setMetric] = useState<Metric>("pnl");
-  const data = useMemo<ChartPoint[]>(() => {
+  const allData = useMemo<ChartPoint[]>(() => {
     if (snapshots.length === 0) return [];
     const end = new Date(snapshots.at(-1)!.timestamp).getTime();
     const endDate = new Date(end);
@@ -51,9 +51,12 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
       displayValue: metric === "pnl" ? snapshot.totalPnlChf : snapshot.portfolioValueChf,
     }));
   }, [metric, range, snapshots]);
+  const data = allData.filter((point) => point.source !== "LIVE_ESTIMATE");
+  const displayPoint = allData.at(-1);
 
   const first = data.at(0)?.displayValue ?? 0;
   const last = data.at(-1)?.displayValue ?? 0;
+  const displayedValue = displayPoint?.displayValue ?? last;
   const change = last - first;
   const low = data.reduce((value, point) => Math.min(value, point.displayValue), last);
   const high = data.reduce((value, point) => Math.max(value, point.displayValue), last);
@@ -67,10 +70,10 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
         <div className="terminal-chart-title">
           <div className="terminal-kicker"><Activity aria-hidden="true" /> Performance</div>
           <div className="terminal-value-row">
-            <strong>{formatChf(last, { signed: metric === "pnl" })}</strong>
+            <strong>{formatChf(displayedValue, { signed: metric === "pnl" })}</strong>
             <span className={change >= 0 ? "positive" : "negative"}>{change >= 0 ? <TrendingUp aria-hidden="true" /> : <TrendingDown aria-hidden="true" />}{formatChf(change, { signed: true })}</span>
           </div>
-          <p>{label} · {rangeLabel}</p>
+          <p>{displayPoint?.source === "LIVE_ESTIMATE" ? `${label} · live estimate (not plotted)` : `${label} · ${rangeLabel}`}</p>
         </div>
         <div className="terminal-chart-controls">
           <div className="metric-tabs" aria-label="Chart metric">
@@ -104,7 +107,7 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
           </ResponsiveContainer>
         </div>
       </> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div>{hasTransactions ? <><strong>Performance history starts here at {formatChf(last, { signed: true })}</strong><p>Refresh prices again to capture the next performance point.</p></> : <><strong>No portfolio history yet</strong><p>Add or import a transaction to start tracking portfolio performance.</p></>}</div></div>}
-      <footer className="terminal-chart-footer"><span><i aria-hidden="true" />Live and recorded marks</span><span>Daily closes are rebuilt from market history · Price refreshes add intraday marks</span></footer>
+      <footer className="terminal-chart-footer"><span><i aria-hidden="true" />Comparable price marks</span><span>{displayPoint?.source === "LIVE_ESTIMATE" ? "Mixed or stale live quotes are shown above as an estimate, not connected to the chart." : "Daily closes are rebuilt from market history · comparable price refreshes add intraday marks."}</span></footer>
     </section>
   );
 }

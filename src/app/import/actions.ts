@@ -7,7 +7,6 @@ import { importDegiroCsv, type DegiroImportReport } from "@/lib/import/degiro-im
 import { syncTrading212, type Trading212SyncReport } from "@/lib/import/trading212-sync";
 import { refreshOpenPositionQuotes } from "@/lib/portfolio/market-data-sync";
 import { rebuildPortfolioHistory } from "@/lib/portfolio/history-rebuild";
-import { recordCurrentPortfolioSnapshot } from "@/lib/portfolio/service";
 
 export interface DegiroImportState {
   error?: string;
@@ -32,7 +31,6 @@ async function rebuildHistoryAfterImport() {
   } catch (error) {
     console.error("Portfolio history rebuild failed", error);
     await prisma.portfolioSnapshot.deleteMany();
-    await recordCurrentPortfolioSnapshot();
     return [error instanceof Error
       ? `Historical performance could not be rebuilt: ${error.message}`
       : "Historical performance could not be rebuilt."];

@@ -5,7 +5,10 @@ export interface RecordedPortfolioSnapshot {
   cashChf: number;
   unrealizedPnlChf: number;
   realizedPnlChf: number;
+  source?: SnapshotSource;
 }
+
+export type SnapshotSource = "HISTORICAL_CLOSE" | "INTRADAY_COMPARABLE" | "LIVE_ESTIMATE";
 
 export interface PortfolioHistoryPoint {
   timestamp: string;
@@ -14,6 +17,7 @@ export interface PortfolioHistoryPoint {
   cashChf: number;
   totalPnlChf: number;
   isLive: boolean;
+  source: SnapshotSource;
 }
 
 export function buildPortfolioHistory(input: {
@@ -21,6 +25,7 @@ export function buildPortfolioHistory(input: {
   current: Omit<RecordedPortfolioSnapshot, "timestamp">;
   hasTransactions: boolean;
   currentTimestamp?: Date;
+  currentSource?: SnapshotSource;
 }) {
   const trustedSnapshots = input.hasTransactions ? input.snapshots : [];
   // Snapshots are taken after a price refresh as well as after an import. Keep
@@ -40,6 +45,7 @@ export function buildPortfolioHistory(input: {
     cashChf: snapshot.cashChf,
     totalPnlChf: snapshot.unrealizedPnlChf + snapshot.realizedPnlChf,
     isLive: false,
+    source: snapshot.source ?? "HISTORICAL_CLOSE",
   }));
   points.push({
     timestamp: currentTimestamp.toISOString(),
@@ -48,6 +54,7 @@ export function buildPortfolioHistory(input: {
     cashChf: input.current.cashChf,
     totalPnlChf: input.current.unrealizedPnlChf + input.current.realizedPnlChf,
     isLive: true,
+    source: input.currentSource ?? "LIVE_ESTIMATE",
   });
 
   return {
