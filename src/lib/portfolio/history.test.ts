@@ -68,7 +68,7 @@ describe("portfolio history", () => {
     );
   });
 
-  it("keeps only the final complete snapshot from each import day", () => {
+  it("keeps every recorded intraday snapshot", () => {
     const history = buildPortfolioHistory({
       snapshots: [
         snapshot("2026-09-01T08:00:00Z", 500),
@@ -79,8 +79,11 @@ describe("portfolio history", () => {
       currentTimestamp: new Date("2026-09-01T10:00:00Z"),
     });
 
-    expect(history.recordedPointCount).toBe(1);
-    expect(history.points).toHaveLength(2);
-    expect(history.points[0]).toMatchObject({ portfolioValueChf: 1_000, totalPnlChf: 200 });
+    expect(history.recordedPointCount).toBe(2);
+    expect(history.points).toHaveLength(3);
+    expect(history.points.slice(0, 2)).toMatchObject([
+      { portfolioValueChf: 500, totalPnlChf: 100 },
+      { portfolioValueChf: 1_000, totalPnlChf: 200 },
+    ]);
   });
 });

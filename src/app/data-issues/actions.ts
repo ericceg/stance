@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { refreshOpenPositionQuotes } from "@/lib/portfolio/market-data-sync";
+import { recordCurrentPortfolioSnapshot } from "@/lib/portfolio/service";
 
 export interface PriceRefreshState {
   error?: string;
@@ -11,6 +12,9 @@ export interface PriceRefreshState {
 export async function refreshPricesAction(): Promise<PriceRefreshState> {
   try {
     const report = await refreshOpenPositionQuotes();
+    // Preserve each successful refresh as an intraday performance point. The
+    // chart keeps these alongside the daily reconstructed closing history.
+    if (report.updated > 0) await recordCurrentPortfolioSnapshot();
     revalidatePath("/");
     revalidatePath("/data-issues");
     if (report.warnings.length > 0) {

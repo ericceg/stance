@@ -36,7 +36,12 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
     const filtered = snapshots.filter((snapshot) => new Date(snapshot.timestamp).getTime() >= cutoff);
     return filtered.map((snapshot) => ({
       ...snapshot,
-      dateLabel: formatChartDate(snapshot.timestamp),
+      dateLabel: range === "1D"
+        ? new Intl.DateTimeFormat("en-CH", { hour: "2-digit", minute: "2-digit" }).format(new Date(snapshot.timestamp))
+        : formatChartDate(snapshot.timestamp),
+      tooltipLabel: new Intl.DateTimeFormat("en-CH", {
+        day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+      }).format(new Date(snapshot.timestamp)),
     }));
   }, [range, snapshots]);
 
@@ -66,7 +71,14 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} stroke="var(--line)" strokeDasharray="3 5" />
-                <XAxis dataKey="dateLabel" axisLine={false} tickLine={false} minTickGap={40} tick={{ fill: "var(--muted)", fontSize: 11 }} />
+                <XAxis
+                  dataKey="dateLabel"
+                  axisLine={false}
+                  tickLine={false}
+                  minTickGap={range === "1D" ? 20 : 32}
+                  tickCount={range === "1D" ? 8 : 10}
+                  tick={{ fill: "var(--muted)", fontSize: 11 }}
+                />
                 <YAxis hide domain={([minimum, maximum]: readonly [number, number]) => {
                   const padding = Math.max((maximum - minimum) * 0.12, 10);
                   return [minimum - padding, maximum + padding];
@@ -74,6 +86,7 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
                 <Tooltip
                   contentStyle={{ background: "var(--surface-strong)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "var(--shadow)" }}
                   formatter={(value) => [formatChf(Number(value), { signed: true }), "Total P&L"]}
+                  labelFormatter={(_, payload) => payload[0]?.payload.tooltipLabel ?? ""}
                   labelStyle={{ color: "var(--muted)", fontSize: 11, marginBottom: 4 }}
                 />
                 <Area type="monotone" dataKey="totalPnlChf" stroke="var(--chart)" strokeWidth={2.5} fill="url(#portfolioFill)" activeDot={{ r: 4, fill: "var(--chart)", strokeWidth: 0 }} />
@@ -84,7 +97,7 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
       ) : (
         <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div>{hasTransactions ? <><strong>Performance history starts here at {formatChf(last, { signed: true })}</strong><p>PersPort records total P&amp;L after every import or sync. One more recorded snapshot is needed to draw a trend.</p></> : <><strong>No portfolio history yet</strong><p>Add or import a transaction to start tracking portfolio performance.</p></>}</div></div>
       )}
-      <p className="chart-note">Total P&amp;L is unrealized plus realized gain or loss, so deposits and withdrawals do not appear as performance. History is limited to recorded imports and syncs.</p>
+      <p className="chart-note">Total P&amp;L is unrealized plus realized gain or loss, so deposits and withdrawals do not appear as performance. Daily closes are rebuilt from market history; every price refresh adds an intraday point.</p>
     </section>
   );
 }

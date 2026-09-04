@@ -23,15 +23,17 @@ export function buildPortfolioHistory(input: {
   currentTimestamp?: Date;
 }) {
   const trustedSnapshots = input.hasTransactions ? input.snapshots : [];
-  const dailySnapshots = [...trustedSnapshots.reduce((byDay, snapshot) => {
-    byDay.set(snapshot.timestamp.toISOString().slice(0, 10), snapshot);
-    return byDay;
-  }, new Map<string, RecordedPortfolioSnapshot>()).values()];
-  const latestRecordedTimestamp = dailySnapshots.at(-1)?.timestamp.getTime() ?? 0;
+  // Snapshots are taken after a price refresh as well as after an import. Keep
+  // every recorded timestamp so the 1D and 1W views can show intraday moves.
+  // Historical reconstruction still contributes its daily closing points.
+  const recordedSnapshots = [...trustedSnapshots].sort((left, right) => (
+    left.timestamp.getTime() - right.timestamp.getTime()
+  ));
+  const latestRecordedTimestamp = recordedSnapshots.at(-1)?.timestamp.getTime() ?? 0;
   const requestedCurrentTimestamp = (input.currentTimestamp ?? new Date()).getTime();
   const currentTimestamp = new Date(Math.max(requestedCurrentTimestamp, latestRecordedTimestamp + 1));
 
-  const points: PortfolioHistoryPoint[] = dailySnapshots.map((snapshot) => ({
+  const points: PortfolioHistoryPoint[] = recordedSnapshots.map((snapshot) => ({
     timestamp: snapshot.timestamp.toISOString(),
     portfolioValueChf: snapshot.portfolioValueChf,
     investedCapitalChf: snapshot.investedCapitalChf,
@@ -50,6 +52,6 @@ export function buildPortfolioHistory(input: {
 
   return {
     points,
-    recordedPointCount: dailySnapshots.length,
+    recordedPointCount: recordedSnapshots.length,
   };
 }
