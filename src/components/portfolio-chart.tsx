@@ -5,24 +5,14 @@ import { Activity, ChartNoAxesCombined, TrendingDown, TrendingUp } from "lucide-
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatChartDate, formatChf } from "@/lib/format";
 
-const ranges = ["1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const;
-type Range = (typeof ranges)[number];
+import { chartRanges as ranges, prepareChartData, type ChartRange as Range, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
+
 type Metric = "pnl" | "value";
-
-const rangeDays: Record<Range, number> = {
-  "1D": 1, "1W": 7, "1M": 31, "3M": 93, YTD: 0, "1Y": 366, ALL: Infinity,
-};
-
 interface PortfolioChartProps {
   hasTransactions: boolean;
   recordedSnapshotCount: number;
-  snapshots: { timestamp: string; totalPnlChf: number; portfolioValueChf: number; isLive: boolean; source: "HISTORICAL_CLOSE" | "INTRADAY_COMPARABLE" | "LIVE_ESTIMATE" }[];
+  snapshots: ChartSnapshot[];
 }
-
-type ChartPoint = PortfolioChartProps["snapshots"][number] & {
-  time: number;
-  displayValue: number;
-};
 
 function axisLabel(timestamp: number, range: Range) {
   const date = new Date(timestamp);
@@ -45,27 +35,20 @@ function tooltipDate(point: ChartPoint) {
 export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapshots }: PortfolioChartProps) {
   const [range, setRange] = useState<Range>("1M");
   const [metric, setMetric] = useState<Metric>("pnl");
-  const allData = useMemo<ChartPoint[]>(() => {
-    if (snapshots.length === 0) return [];
-    const end = new Date(snapshots.at(-1)!.timestamp).getTime();
-    const endDate = new Date(end);
-    const cutoff = range === "YTD" ? Date.UTC(endDate.getUTCFullYear(), 0, 1) : end - rangeDays[range] * 86_400_000;
-    return snapshots.filter((snapshot) => new Date(snapshot.timestamp).getTime() >= cutoff).map((snapshot) => ({
-      ...snapshot,
-      time: new Date(snapshot.timestamp).getTime(),
-      displayValue: metric === "pnl" ? snapshot.totalPnlChf : snapshot.portfolioValueChf,
-    }));
-  }, [metric, range, snapshots]);
-  const data = allData.filter((point) => point.source !== "LIVE_ESTIMATE");
-  const displayPoint = allData.at(-1);
-
-  const first = data.at(0)?.displayValue ?? 0;
-  const last = data.at(-1)?.displayValue ?? 0;
-  const chartValue = data.at(-1)?.displayValue ?? displayPoint?.displayValue ?? 0;
+  const { data, observationCount, displayPoint, chartValue, change, low, high, daily } = useMemo(
+    () => prepareChartData(snapshots, range, metric), [snapshots, range, metric],
+  );
+  const ticks = useMemo(() => {
+    if (data.length < 2) return undefined;
+    const start = data[0].time;
+    const end = data.at(-1)!.time;
+    // Explicit ticks prevent the time scale from generating duplicate date labels.
+    return [...new Map(Array.from({ length: 6 }, (_, index) => {
+      const time = start + (end - start) * index / 5;
+      return [axisLabel(time, range), time] as const;
+    })).values()];
+  }, [data, range]);
   const liveEstimate = displayPoint?.source === "LIVE_ESTIMATE" ? displayPoint.displayValue : null;
-  const change = last - first;
-  const low = data.reduce((value, point) => Math.min(value, point.displayValue), last);
-  const high = data.reduce((value, point) => Math.max(value, point.displayValue), last);
   const hasTrend = data.length >= 2 && recordedSnapshotCount >= 2;
   const label = metric === "pnl" ? "Total P&L" : "Portfolio value";
   const rangeLabel = range === "ALL" ? "All recorded history" : `${range} performance`;
@@ -79,16 +62,16 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
             <strong>{formatChf(chartValue, { signed: metric === "pnl" })}</strong>
             <span className={change >= 0 ? "positive" : "negative"}>{change >= 0 ? <TrendingUp aria-hidden="true" /> : <TrendingDown aria-hidden="true" />}{formatChf(change, { signed: true })}</span>
           </div>
-          <p>{label} · {rangeLabel}</p>
+          <p>{label} · {rangeLabel} · {daily ? "Daily valuations" : "Intraday"}</p>
           {liveEstimate !== null ? <div className="terminal-live-estimate"><span>Live estimate</span><strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong><small>mixed quotes · not plotted</small></div> : null}
         </div>
         <div className="terminal-chart-controls">
           <div className="metric-tabs" aria-label="Chart metric">
-            <button className={metric === "pnl" ? "is-active" : ""} onClick={() => setMetric("pnl")} type="button">P&amp;L</button>
-            <button className={metric === "value" ? "is-active" : ""} onClick={() => setMetric("value")} type="button">Value</button>
+            <button className={metric === "pnl" ? "is-active" : ""} aria-pressed={metric === "pnl"} onClick={() => setMetric("pnl")} type="button">P&amp;L</button>
+            <button className={metric === "value" ? "is-active" : ""} aria-pressed={metric === "value"} onClick={() => setMetric("value")} type="button">Value</button>
           </div>
           <div className="range-tabs" aria-label="Chart time range">
-            {ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} onClick={() => setRange(item)} type="button">{item}</button>)}
+            {ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} aria-pressed={item === range} onClick={() => setRange(item)} type="button">{item}</button>)}
           </div>
         </div>
       </header>
@@ -96,25 +79,25 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
       {hasTrend ? <>
         <div className="terminal-chart-stats" aria-label={`${label} range statistics`}>
           <div><span>Period change</span><strong className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}</strong></div>
-          <div><span>Period high</span><strong>{formatChf(high, { signed: metric === "pnl" })}</strong></div>
-          <div><span>Period low</span><strong>{formatChf(low, { signed: metric === "pnl" })}</strong></div>
-          <div><span>Observations</span><strong>{data.length}</strong></div>
+          <div><span>{daily ? "Daily high" : "Period high"}</span><strong>{formatChf(high, { signed: metric === "pnl" })}</strong></div>
+          <div><span>{daily ? "Daily low" : "Period low"}</span><strong>{formatChf(low, { signed: metric === "pnl" })}</strong></div>
+          <div><span>Resolution</span><strong>{daily ? `${observationCount} daily marks` : "Intraday marks"}</strong></div>
         </div>
         <div className="terminal-chart-wrap">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 12, right: 48, left: 4, bottom: 2 }}>
+          <ResponsiveContainer width="100%" height="100%" debounce={100}>
+            <AreaChart data={data} margin={{ top: 12, right: 12, left: 4, bottom: 2 }}>
               <defs><linearGradient id="portfolioTerminalFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--chart)" stopOpacity={0.38} /><stop offset="72%" stopColor="var(--chart)" stopOpacity={0.06} /><stop offset="100%" stopColor="var(--chart)" stopOpacity={0} /></linearGradient></defs>
               <CartesianGrid vertical={false} stroke="var(--line)" strokeDasharray="2 5" />
-              <XAxis type="number" dataKey="time" scale="time" domain={["dataMin", "dataMax"]} axisLine={false} tickLine={false} tickCount={range === "1D" ? 8 : 7} tickFormatter={(value) => axisLabel(value, range)} tick={{ fill: "var(--muted)", fontSize: 10 }} />
-              <YAxis width={44} orientation="right" axisLine={false} tickLine={false} tickCount={5} tickFormatter={(value) => formatChf(value).replace("CHF ", "")} tick={{ fill: "var(--muted)", fontFamily: "var(--font-geist-mono)", fontSize: 9 }} domain={([minimum, maximum]: readonly [number, number]) => { const padding = Math.max((maximum - minimum) * 0.12, 10); return [minimum - padding, maximum + padding]; }} />
+              <XAxis type="number" dataKey="time" scale="time" domain={["dataMin", "dataMax"]} axisLine={false} tickLine={false} ticks={ticks} minTickGap={36} interval="preserveStartEnd" tickFormatter={(value) => axisLabel(value, range)} tick={{ fill: "var(--muted)", fontSize: 10 }} />
+              <YAxis width={76} orientation="right" axisLine={false} tickLine={false} tickCount={5} tickFormatter={(value) => formatChf(value).replace("CHF ", "")} tick={{ fill: "var(--muted)", fontFamily: "var(--font-geist-mono)", fontSize: 9 }} domain={([minimum, maximum]: readonly [number, number]) => { const padding = Math.max((maximum - minimum) * 0.12, 10); return [minimum - padding, maximum + padding]; }} />
               {metric === "pnl" ? <ReferenceLine y={0} stroke="var(--line-strong)" strokeDasharray="3 4" /> : null}
-              <Tooltip cursor={{ stroke: "var(--chart)", strokeOpacity: 0.55, strokeDasharray: "3 4" }} content={({ active, payload }) => { const point = payload?.[0]?.payload as ChartPoint | undefined; return active && point ? <div className="terminal-tooltip"><span>{tooltipDate(point)}</span><strong>{formatChf(point.displayValue, { signed: metric === "pnl" })}</strong><small>{point.source === "HISTORICAL_CLOSE" ? "Historical closing valuation" : "Comparable intraday snapshot"}</small></div> : null; }} />
-              <Area type="linear" dataKey="displayValue" stroke="var(--chart)" strokeWidth={2.25} fill="url(#portfolioTerminalFill)" activeDot={{ r: 4, fill: "var(--surface-strong)", stroke: "var(--chart)", strokeWidth: 2 }} />
+              <Tooltip isAnimationActive={false} cursor={{ stroke: "var(--chart)", strokeOpacity: 0.55, strokeDasharray: "3 4" }} content={({ active, payload }) => { const point = payload?.[0]?.payload as ChartPoint | undefined; return active && point ? <div className="terminal-tooltip"><span>{tooltipDate(point)}</span><strong>{formatChf(point.displayValue, { signed: metric === "pnl" })}</strong><small>{point.source === "HISTORICAL_CLOSE" ? "Historical closing valuation" : "Comparable intraday snapshot"}</small></div> : null; }} />
+              <Area isAnimationActive={false} dot={false} type="linear" dataKey="displayValue" stroke="var(--chart)" strokeWidth={2.25} fill="url(#portfolioTerminalFill)" activeDot={{ r: 4, fill: "var(--surface-strong)", stroke: "var(--chart)", strokeWidth: 2 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
-      </> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div>{hasTransactions ? <><strong>Performance history starts here at {formatChf(last, { signed: true })}</strong><p>Refresh prices again to capture the next performance point.</p></> : <><strong>No portfolio history yet</strong><p>Add or import a transaction to start tracking portfolio performance.</p></>}</div></div>}
-      <footer className="terminal-chart-footer"><span><i aria-hidden="true" />Comparable price marks</span><span>{displayPoint?.source === "LIVE_ESTIMATE" ? "Mixed or stale live quotes are shown above as an estimate, not connected to the chart." : "Daily closes are rebuilt from market history · comparable price refreshes add intraday marks."}</span></footer>
+      </> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div>{hasTransactions ? <><strong>Performance history starts here at {formatChf(chartValue, { signed: metric === "pnl" })}</strong><p>Try a longer range or refresh prices to add another valuation.</p></> : <><strong>No portfolio history yet</strong><p>Add or import a transaction to start tracking portfolio performance.</p></>}</div></div>}
+      <footer className="terminal-chart-footer"><span><i aria-hidden="true" />{daily ? "Daily valuations" : "Comparable intraday prices"}</span><span>{daily ? "One last available valuation per day. Select 1D or 1W for intraday detail." : "Intraday detail is available for the most recent 7 days. Older history uses daily valuations."}{liveEstimate !== null ? " Live estimates are excluded." : ""}</span></footer>
     </section>
   );
 }
