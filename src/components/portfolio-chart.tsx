@@ -58,10 +58,10 @@ function tradeMarkers(data: ChartPoint[], transactions: ChartTransaction[], dail
       id: transaction.id,
       time: markerTime as UTCTimestamp,
       position: buy ? "belowBar" as const : "aboveBar" as const,
-      shape: buy ? "arrowUp" as const : "arrowDown" as const,
+      shape: "circle" as const,
       color: buy ? "#2f9d68" : "#d65c5c",
-      text: buy ? "B" : "S",
-      size: 1,
+      text: buy ? "▲" : "▼",
+      size: 0,
     }];
   }).sort((left, right) => Number(left.time) - Number(right.time));
 }
