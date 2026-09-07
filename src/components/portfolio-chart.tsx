@@ -9,6 +9,7 @@ import { chartRanges as ranges, prepareChartData, indexChartPoints, type ChartRa
 // TradingView Lightweight Charts™
 // Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
 type Metric = "pnl" | "value";
+type TickCount = "all" | 10 | 25 | 50;
 interface PortfolioChartProps {
   hasTransactions: boolean;
   recordedSnapshotCount: number;
@@ -18,7 +19,13 @@ interface PortfolioChartProps {
 const dateFormat = new Intl.DateTimeFormat("en-CH", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 const timeFormat = new Intl.DateTimeFormat("en-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
-function TradingPlot({ data, daily, metric, area }: { data: ChartPoint[]; daily: boolean; metric: Metric; area: boolean }) {
+function selectChartTicks(data: ChartPoint[], tickCount: TickCount) {
+  if (tickCount === "all" || data.length <= tickCount) return data;
+
+  return Array.from({ length: tickCount }, (_, index) => data[Math.round(index * (data.length - 1) / (tickCount - 1))]);
+}
+
+function TradingPlot({ data, daily, metric, area, tickCount }: { data: ChartPoint[]; daily: boolean; metric: Metric; area: boolean; tickCount: TickCount }) {
   const container = useRef<HTMLDivElement>(null);
   const readout = useRef<HTMLOutputElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -56,7 +63,7 @@ function TradingPlot({ data, daily, metric, area }: { data: ChartPoint[]; daily:
       priceFormat: { type: "price", precision: 2, minMove: 0.01 },
     });
     // The canvas engine supports full intraday history; deduplicate to its second precision.
-    const points = indexChartPoints(data, daily);
+    const points = indexChartPoints(selectChartTicks(data, tickCount), daily);
     series.setData([...points].map(([time, point]) => ({ time: time as UTCTimestamp, value: point.displayValue })));
     chart.timeScale().fitContent();
     chartRef.current = chart;
@@ -81,11 +88,11 @@ function TradingPlot({ data, daily, metric, area }: { data: ChartPoint[]; daily:
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [data, daily, metric]);
+  }, [data, daily, metric, tickCount]);
 
   useEffect(() => {
     seriesRef.current?.applyOptions({ topColor: area ? "rgba(63, 155, 106, 0.16)" : "transparent", bottomColor: "rgba(63, 155, 106, 0)" });
-  }, [area, data, daily, metric]);
+  }, [area, data, daily, metric, tickCount]);
 
   const zoom = (factor: number) => {
     const scale = chartRef.current?.timeScale();
@@ -111,6 +118,7 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
   const [range, setRange] = useState<Range>("1M");
   const [metric, setMetric] = useState<Metric>("pnl");
   const [area, setArea] = useState(true);
+  const [tickCount, setTickCount] = useState<TickCount>("all");
   const { fullData: data, displayPoint, chartValue, change, low, high, daily } = useMemo(
     () => prepareChartData(snapshots, range, metric), [snapshots, range, metric],
   );
@@ -129,13 +137,22 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
           <button type="button" aria-pressed={!area} onClick={() => setArea(false)}>Line</button>
           <button type="button" aria-pressed={area} onClick={() => setArea(true)}>Area</button>
         </div>
+        <label className="tick-count-control">
+          <span>Ticks</span>
+          <select value={tickCount} onChange={(event) => setTickCount(event.target.value === "all" ? "all" : Number(event.target.value) as Exclude<TickCount, "all">)}>
+            <option value="all">All</option>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+          </select>
+        </label>
       </div>
     </header>
     <div className="trading-summary">
       <div className="terminal-value-row"><strong>{formatChf(chartValue, { signed: metric === "pnl" })}</strong><span className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}<small>{range}</small></span></div>
       <div className="trading-extremes"><span>{daily ? "Daily high" : "High"} <strong>{formatChf(high)}</strong></span><span>{daily ? "Daily low" : "Low"} <strong>{formatChf(low)}</strong></span></div>
     </div>
-    {hasTrend ? <TradingPlot data={data} daily={daily} metric={metric} area={area} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
+    {hasTrend ? <TradingPlot data={data} daily={daily} metric={metric} area={area} tickCount={tickCount} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
     <div className="trading-bottom-bar">
       <div className="range-tabs" aria-label="Chart time range">{ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} aria-pressed={item === range} onClick={() => setRange(item)} type="button">{item}</button>)}</div>
       <span>{daily ? "1D resolution" : "Intraday · UTC"}<span className="trading-gesture-hint"> · Drag to pan · Scroll to zoom</span></span>

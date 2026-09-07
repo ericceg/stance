@@ -430,6 +430,8 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .trading-style { display: flex; gap: 2px; border-left: 1px solid var(--line); padding-left: 12px; }
 .trading-style button { padding: 6px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 10px; }
 .trading-style button[aria-pressed="true"] { background: var(--accent-soft); color: var(--green); }
+.tick-count-control { display: flex; align-items: center; gap: 6px; border-left: 1px solid var(--line); padding-left: 12px; color: var(--muted); font-size: 10px; }
+.tick-count-control select { min-width: 52px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink-soft); font: inherit; padding: 5px 6px; }
 .trading-summary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 20px; padding: 13px 18px 8px; }
 .trading-summary .terminal-value-row { margin: 0; }
 .trading-summary .terminal-value-row > strong { font-size: 24px; }
@@ -456,6 +458,8 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .trading-note strong { font-weight: 500; color: var(--ink-soft); }
 @media (max-width: 700px) {
   .trading-toolbar { padding-inline: 12px; gap: 8px; flex-wrap: wrap; }
+  .trading-toolbar-controls { gap: 8px; }
+  .tick-count-control { padding-left: 8px; }
   .trading-summary { padding-inline: 12px; }
   .trading-summary .terminal-value-row > strong { font-size: 21px; }
   .trading-readout { padding-inline: 12px; min-height: 42px; gap: 4px; flex-direction: column; }
