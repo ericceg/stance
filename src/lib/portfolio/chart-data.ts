@@ -55,6 +55,7 @@ export function prepareChartData(snapshots: ChartSnapshot[], range: ChartRange, 
   const last = observations.at(-1)?.displayValue ?? 0;
   return {
     data: compactChartPoints(observations),
+    fullData: observations,
     observationCount: observations.length,
     displayPoint,
     chartValue: observations.at(-1)?.displayValue ?? displayPoint?.displayValue ?? 0,
@@ -63,4 +64,15 @@ export function prepareChartData(snapshots: ChartSnapshot[], range: ChartRange, 
     high: observations.reduce((value, point) => Math.max(value, point.displayValue), last),
     daily,
   };
+}
+
+// Canvas time keys must be unique and strictly increasing. Retain the last
+// valuation in each UTC day/second and keep its original timestamp for inspection.
+export function indexChartPoints(points: ChartPoint[], daily: boolean) {
+  const indexed = new Map<number, ChartPoint>();
+  for (const point of points) {
+    const key = daily ? Math.floor(point.time / day) * 86400 : Math.floor(point.time / 1000);
+    indexed.set(key, point);
+  }
+  return indexed;
 }

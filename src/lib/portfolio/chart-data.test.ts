@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prepareChartData, type ChartSnapshot } from "./chart-data";
+import { indexChartPoints, prepareChartData, type ChartSnapshot } from "./chart-data";
 
 function point(timestamp: string, value: number, source: ChartSnapshot["source"] = "INTRADAY_COMPARABLE"): ChartSnapshot {
   return { timestamp, totalPnlChf: value, portfolioValueChf: value + 1000, source, isLive: source === "LIVE_ESTIMATE" };
@@ -46,5 +46,27 @@ describe("performance chart resolution", () => {
     const snapshots = [point("2026-01-02T12:00:00Z", 20), point("2025-12-31T12:00:00Z", 5), point("2026-01-01T12:00:00Z", 10)];
     expect(prepareChartData(snapshots, "YTD", "pnl").data.map((p) => p.displayValue)).toEqual([10, 20]);
     expect(prepareChartData(snapshots, "ALL", "pnl").change).toBe(15);
+  });
+});
+
+
+describe("canvas chart timestamps", () => {
+  it("keeps full intraday detail and deduplicates timestamps at second precision", () => {
+    const snapshots = Array.from({ length: 1000 }, (_, i) => point(new Date(Date.UTC(2026, 8, 4) + i * 1000).toISOString(), i));
+    snapshots.push(point("2026-09-04T00:00:01.999Z", 2000));
+    const { fullData } = prepareChartData(snapshots, "1D", "pnl");
+    expect(fullData).toHaveLength(1001);
+    const indexed = indexChartPoints(fullData, false);
+    expect(indexed.size).toBe(1000);
+    expect(indexed.get(Date.parse("2026-09-04T00:00:01Z") / 1000)?.displayValue).toBe(2000);
+    const times = [...indexed.keys()];
+    expect(times.every((time, i) => i === 0 || time > times[i - 1])).toBe(true);
+  });
+
+  it("places daily marks at UTC midnight without changing the original inspection time", () => {
+    const { fullData } = prepareChartData([point("2026-09-04T23:59:59.999Z", 25)], "1M", "pnl");
+    const indexed = indexChartPoints(fullData, true);
+    expect([...indexed.keys()]).toEqual([Date.parse("2026-09-04T00:00:00Z") / 1000]);
+    expect([...indexed.values()][0].timestamp).toBe("2026-09-04T23:59:59.999Z");
   });
 });
