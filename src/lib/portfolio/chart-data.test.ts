@@ -41,6 +41,19 @@ describe("performance chart resolution", () => {
     expect(prepareChartData(snapshots, "1D", "value").data.map((p) => p.displayValue)).toEqual([1010, 1020]);
   });
 
+  it("keeps the final valuation in each selected time interval", () => {
+    const snapshots = [
+      point("2026-01-05T10:00:00Z", 10),
+      point("2026-01-05T10:30:00Z", 20),
+      point("2026-01-05T11:00:00Z", 30),
+      point("2026-01-12T12:00:00Z", 40),
+      point("2026-02-01T12:00:00Z", 50),
+    ];
+    expect(prepareChartData(snapshots, "ALL", "pnl", "hour").data.map((point) => point.displayValue)).toEqual([20, 30, 40, 50]);
+    expect(prepareChartData(snapshots, "ALL", "pnl", "week").data.map((point) => point.displayValue)).toEqual([30, 40, 50]);
+    expect(prepareChartData(snapshots, "ALL", "pnl", "month").data.map((point) => point.displayValue)).toEqual([40, 50]);
+  });
+
   it("handles empty history, unordered input and the YTD boundary", () => {
     expect(prepareChartData([], "ALL", "pnl").data).toEqual([]);
     const snapshots = [point("2026-01-02T12:00:00Z", 20), point("2025-12-31T12:00:00Z", 5), point("2026-01-01T12:00:00Z", 10)];

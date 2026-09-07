@@ -2,6 +2,9 @@ import type { SnapshotSource } from "./history";
 
 export const chartRanges = ["1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const;
 export type ChartRange = (typeof chartRanges)[number];
+export const chartResolutions = ["auto", "month", "week", "day", "hour", "minute"] as const;
+export type ChartResolution = (typeof chartResolutions)[number];
+type ResolvedChartResolution = Exclude<ChartResolution, "auto"> | "intraday";
 export interface ChartSnapshot {
   timestamp: string;
   totalPnlChf: number;
@@ -12,6 +15,23 @@ export interface ChartSnapshot {
 export type ChartPoint = ChartSnapshot & { time: number; displayValue: number };
 const day = 86_400_000;
 const rangeDays: Record<ChartRange, number> = { "1D": 1, "1W": 7, "1M": 31, "3M": 93, YTD: 0, "1Y": 366, ALL: Infinity };
+
+function resolvedResolution(range: ChartRange, resolution: ChartResolution): ResolvedChartResolution {
+  if (resolution !== "auto") return resolution;
+  return range === "1D" || range === "1W" ? "intraday" : "day";
+}
+
+function bucketKey(time: number, resolution: Exclude<ChartResolution, "auto">) {
+  const date = new Date(time);
+  if (resolution === "minute") return Math.floor(time / 60_000);
+  if (resolution === "hour") return Math.floor(time / 3_600_000);
+  if (resolution === "day") return Math.floor(time / day);
+  if (resolution === "week") {
+    const mondayOffset = (date.getUTCDay() + 6) % 7;
+    return Math.floor(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - mondayOffset) / day);
+  }
+  return date.getUTCFullYear() * 12 + date.getUTCMonth();
+}
 
 // Keep real observations (including extrema), never averaged or invented values.
 // A fixed upper bound keeps SVG rendering and pointer lookup inexpensive.
@@ -35,7 +55,7 @@ export function compactChartPoints(points: ChartPoint[], maxPoints = 480): Chart
   return [...result, points.at(-1)!];
 }
 
-export function prepareChartData(snapshots: ChartSnapshot[], range: ChartRange, metric: "pnl" | "value") {
+export function prepareChartData(snapshots: ChartSnapshot[], range: ChartRange, metric: "pnl" | "value", resolution: ChartResolution = "auto") {
   const sorted = snapshots.map((point) => ({ ...point, time: Date.parse(point.timestamp), displayValue: metric === "pnl" ? point.totalPnlChf : point.portfolioValueChf }))
     .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.displayValue))
     .sort((a, b) => a.time - b.time);
@@ -44,12 +64,13 @@ export function prepareChartData(snapshots: ChartSnapshot[], range: ChartRange, 
   // Anchor to available market history, so weekends don't empty the day view.
   const end = comparable.at(-1)?.time ?? displayPoint?.time ?? 0;
   const cutoff = range === "YTD" ? Date.UTC(new Date(end).getUTCFullYear(), 0, 1) : end - rangeDays[range] * day;
-  const daily = range !== "1D" && range !== "1W";
+  const selectedResolution = resolvedResolution(range, resolution);
+  const dateOnly = selectedResolution === "month" || selectedResolution === "week" || selectedResolution === "day";
   let observations = comparable.filter((point) => point.time >= cutoff);
-  if (daily) {
-    const days = new Map<number, ChartPoint>();
-    for (const point of observations) days.set(Math.floor(point.time / day), point);
-    observations = [...days.values()];
+  if (selectedResolution !== "intraday") {
+    const buckets = new Map<number, ChartPoint>();
+    for (const point of observations) buckets.set(bucketKey(point.time, selectedResolution), point);
+    observations = [...buckets.values()];
   }
   const first = observations.at(0)?.displayValue ?? 0;
   const last = observations.at(-1)?.displayValue ?? 0;
@@ -62,7 +83,8 @@ export function prepareChartData(snapshots: ChartSnapshot[], range: ChartRange, 
     change: last - first,
     low: observations.reduce((value, point) => Math.min(value, point.displayValue), last),
     high: observations.reduce((value, point) => Math.max(value, point.displayValue), last),
-    daily,
+    daily: dateOnly,
+    resolution: selectedResolution,
   };
 }
 
