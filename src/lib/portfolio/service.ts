@@ -247,6 +247,16 @@ export async function getDashboardData() {
       ],
     }];
   });
+  const chartTransactions = data.accountingTransactions.flatMap((transaction) => (
+    transaction.securityId && (transaction.type === "BUY" || transaction.type === "SELL")
+      ? [{
+        id: transaction.id,
+        securityId: transaction.securityId,
+        type: transaction.type,
+        timestamp: transaction.timestamp.toISOString(),
+      }]
+      : []
+  ));
 
   return {
     summary: {
@@ -266,6 +276,7 @@ export async function getDashboardData() {
     issues: data.summary.issues,
     snapshots: history.points,
     securitySeries,
+    chartTransactions,
     recordedSnapshotCount: history.recordedPointCount,
     hasTransactions: data.transactions.length > 0,
     allocation: {
