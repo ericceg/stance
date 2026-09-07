@@ -430,8 +430,9 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .trading-style { display: flex; gap: 2px; border-left: 1px solid var(--line); padding-left: 12px; }
 .trading-style button { padding: 6px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 10px; }
 .trading-style button[aria-pressed="true"] { background: var(--accent-soft); color: var(--green); }
-.tick-count-control { display: flex; align-items: center; gap: 6px; border-left: 1px solid var(--line); padding-left: 12px; color: var(--muted); font-size: 10px; }
-.tick-count-control select { min-width: 52px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink-soft); font: inherit; padding: 5px 6px; }
+.interval-tabs { display: flex; align-items: center; gap: 2px; border-left: 1px solid var(--line); padding-left: 12px; }
+.interval-tabs button { padding: 6px 7px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 10px; }
+.interval-tabs button[aria-pressed="true"] { background: var(--accent-soft); color: var(--green); }
 .trading-summary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 20px; padding: 13px 18px 8px; }
 .trading-summary .terminal-value-row { margin: 0; }
 .trading-summary .terminal-value-row > strong { font-size: 24px; }
@@ -447,7 +448,7 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .trading-plot:hover .trading-navigation, .trading-plot:focus-within .trading-navigation { opacity: 1; }
 .trading-navigation button { display: grid; place-items: center; width: 28px; height: 26px; border: 0; border-radius: 3px; background: transparent; color: var(--ink-soft); }
 .trading-navigation svg { width: 14px; height: 14px; }
-.trading-navigation button:hover, .trading-style button:hover { background: var(--surface-soft); }
+.trading-navigation button:hover, .trading-style button:hover, .interval-tabs button:hover { background: var(--surface-soft); }
 .trading-panel button:focus-visible { outline: 2px solid var(--chart); outline-offset: 2px; }
 .trading-bottom-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; border-top: 1px solid var(--line); }
 .trading-bottom-bar .range-tabs { background: transparent; padding: 0; }
@@ -459,7 +460,7 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 @media (max-width: 700px) {
   .trading-toolbar { padding-inline: 12px; gap: 8px; flex-wrap: wrap; }
   .trading-toolbar-controls { gap: 8px; }
-  .tick-count-control { padding-left: 8px; }
+  .interval-tabs { padding-left: 8px; }
   .trading-summary { padding-inline: 12px; }
   .trading-summary .terminal-value-row > strong { font-size: 21px; }
   .trading-readout { padding-inline: 12px; min-height: 42px; gap: 4px; flex-direction: column; }

@@ -131,12 +131,9 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
           <button type="button" aria-pressed={!area} onClick={() => setArea(false)}>Line</button>
           <button type="button" aria-pressed={area} onClick={() => setArea(true)}>Area</button>
         </div>
-        <label className="tick-count-control">
-          <span>Interval</span>
-          <select value={resolution} onChange={(event) => setResolution(event.target.value as Resolution)}>
-            {resolutions.map((item) => <option key={item} value={item}>{item === "auto" ? "Auto" : item[0].toUpperCase() + item.slice(1)}</option>)}
-          </select>
-        </label>
+        <div className="interval-tabs" aria-label="Chart interval">
+          {resolutions.map((item) => <button key={item} type="button" aria-pressed={resolution === item} onClick={() => setResolution(item)}>{item === "minute" ? "Min" : item[0].toUpperCase() + item.slice(1)}</button>)}
+        </div>
       </div>
     </header>
     <div className="trading-summary">
