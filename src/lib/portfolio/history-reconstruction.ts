@@ -5,6 +5,14 @@ import type { RecordedPortfolioSnapshot, SnapshotSource } from "./history";
 const DAY_MS = 86_400_000;
 const EPSILON = 1e-9;
 
+export interface RecordedSecuritySnapshot {
+  securityId: string;
+  timestamp: Date;
+  marketValueChf: number;
+  totalPnlChf: number;
+  source?: SnapshotSource;
+}
+
 export interface HistoricalValuationPoint {
   securityId: string;
   timestamp: Date;
@@ -60,14 +68,23 @@ function reconstructAt(input: ReconstructionInput, prepared: ReturnType<typeof p
   const hasUnpricedPosition = summary.positions.some((position) => position.quantity > EPSILON && position.marketValueChf === null);
   if (hasUnpricedPosition) return null;
   return {
-    timestamp,
-    portfolioValueChf: summary.portfolioValueChf,
-    investedCapitalChf: summary.investedCapitalChf,
-    cashChf: summary.cashChf,
-    unrealizedPnlChf: summary.unrealizedPnlChf,
-    realizedPnlChf: summary.realizedPnlChf,
-    source,
-  } satisfies RecordedPortfolioSnapshot;
+    portfolio: {
+      timestamp,
+      portfolioValueChf: summary.portfolioValueChf,
+      investedCapitalChf: summary.investedCapitalChf,
+      cashChf: summary.cashChf,
+      unrealizedPnlChf: summary.unrealizedPnlChf,
+      realizedPnlChf: summary.realizedPnlChf,
+      source,
+    } satisfies RecordedPortfolioSnapshot,
+    securities: summary.positions.map((position) => ({
+      securityId: position.securityId,
+      timestamp,
+      marketValueChf: position.marketValueChf ?? 0,
+      totalPnlChf: (position.unrealizedPnlChf ?? 0) + position.realizedPnlChf,
+      source,
+    } satisfies RecordedSecuritySnapshot)),
+  };
 }
 
 export function reconstructDailyPortfolioSnapshots(input: {
@@ -77,13 +94,14 @@ export function reconstructDailyPortfolioSnapshots(input: {
   valuations: HistoricalValuationPoint[];
   currentTimestamp?: Date;
 }) {
-  if (input.transactions.length === 0) return { snapshots: [], skippedDays: 0 };
+  if (input.transactions.length === 0) return { snapshots: [], securitySnapshots: [], skippedDays: 0 };
 
   const prepared = prepareReconstruction(input);
 
   const firstDay = utcDayStart(prepared.transactions[0].timestamp).getTime();
   const today = utcDayStart(input.currentTimestamp ?? new Date()).getTime();
   const snapshots: RecordedPortfolioSnapshot[] = [];
+  const securitySnapshots: RecordedSecuritySnapshot[] = [];
   let skippedDays = 0;
 
   for (let day = firstDay; day < today; day += DAY_MS) {
@@ -93,23 +111,28 @@ export function reconstructDailyPortfolioSnapshots(input: {
       skippedDays += 1;
       continue;
     }
-    snapshots.push(snapshot);
+    snapshots.push(snapshot.portfolio);
+    securitySnapshots.push(...snapshot.securities);
   }
 
-  return { snapshots, skippedDays };
+  return { snapshots, securitySnapshots, skippedDays };
 }
 
 export function reconstructIntradayPortfolioSnapshots(input: ReconstructionInput & { timestamps: Date[] }) {
-  if (input.transactions.length === 0) return { snapshots: [], skippedPoints: 0 };
+  if (input.transactions.length === 0) return { snapshots: [], securitySnapshots: [], skippedPoints: 0 };
   const prepared = prepareReconstruction(input);
   const timestamps = [...new Map(input.timestamps.map((timestamp) => [timestamp.getTime(), timestamp])).values()]
     .sort((left, right) => left.getTime() - right.getTime());
   const snapshots: RecordedPortfolioSnapshot[] = [];
+  const securitySnapshots: RecordedSecuritySnapshot[] = [];
   let skippedPoints = 0;
   for (const timestamp of timestamps) {
     const snapshot = reconstructAt(input, prepared, timestamp, "INTRADAY_COMPARABLE");
-    if (snapshot) snapshots.push(snapshot);
+    if (snapshot) {
+      snapshots.push(snapshot.portfolio);
+      securitySnapshots.push(...snapshot.securities);
+    }
     else skippedPoints += 1;
   }
-  return { snapshots, skippedPoints };
+  return { snapshots, securitySnapshots, skippedPoints };
 }

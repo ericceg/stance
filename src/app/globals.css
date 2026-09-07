@@ -433,6 +433,11 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .interval-tabs { display: flex; align-items: center; gap: 2px; border-left: 1px solid var(--line); padding-left: 12px; }
 .interval-tabs button { padding: 6px 7px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 10px; }
 .interval-tabs button[aria-pressed="true"] { background: var(--accent-soft); color: var(--green); }
+.comparison-toolbar { display: flex; align-items: center; gap: 10px; padding: 7px 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; }
+.holding-tabs { display: flex; align-items: center; gap: 3px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.holding-tabs button, .comparison-mode button { flex: 0 0 auto; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font-size: 9px; }
+.holding-tabs button[aria-pressed="true"], .comparison-mode button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--chart) 45%, var(--line)); background: var(--accent-soft); color: var(--green); }
+.comparison-mode { display: flex; gap: 3px; margin-left: auto; padding-left: 10px; border-left: 1px solid var(--line); }
 .trading-summary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 20px; padding: 13px 18px 8px; }
 .trading-summary .terminal-value-row { margin: 0; }
 .trading-summary .terminal-value-row > strong { font-size: 24px; }
@@ -442,13 +447,15 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .trading-plot { position: relative; }
 .trading-readout { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0 18px 8px; min-height: 28px; color: var(--muted); font-size: 10px; }
 .trading-readout > span { color: var(--ink-soft); font-weight: 600; }
+.trading-readout .overlay-key { display: inline-flex; align-items: center; gap: 5px; font-weight: 500; }
+.overlay-key i { width: 14px; height: 2px; border-radius: 2px; }
 .trading-readout output { font-family: var(--font-geist-mono); font-variant-numeric: tabular-nums; white-space: pre; }
 .trading-canvas { height: 360px; width: 100%; }
 .trading-navigation { position: absolute; z-index: 3; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-strong); opacity: 0; transition: opacity 120ms; }
 .trading-plot:hover .trading-navigation, .trading-plot:focus-within .trading-navigation { opacity: 1; }
 .trading-navigation button { display: grid; place-items: center; width: 28px; height: 26px; border: 0; border-radius: 3px; background: transparent; color: var(--ink-soft); }
 .trading-navigation svg { width: 14px; height: 14px; }
-.trading-navigation button:hover, .trading-style button:hover, .interval-tabs button:hover { background: var(--surface-soft); }
+.trading-navigation button:hover, .trading-style button:hover, .interval-tabs button:hover, .holding-tabs button:hover, .comparison-mode button:hover { background: var(--surface-soft); }
 .trading-panel button:focus-visible { outline: 2px solid var(--chart); outline-offset: 2px; }
 .trading-bottom-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; border-top: 1px solid var(--line); }
 .trading-bottom-bar .range-tabs { background: transparent; padding: 0; }
@@ -461,6 +468,9 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
   .trading-toolbar { padding-inline: 12px; gap: 8px; flex-wrap: wrap; }
   .trading-toolbar-controls { gap: 8px; }
   .interval-tabs { padding-left: 8px; }
+  .comparison-toolbar { align-items: flex-start; flex-wrap: wrap; padding-inline: 12px; }
+  .holding-tabs { order: 3; width: 100%; }
+  .comparison-mode { margin-left: auto; }
   .trading-summary { padding-inline: 12px; }
   .trading-summary .terminal-value-row > strong { font-size: 21px; }
   .trading-readout { padding-inline: 12px; min-height: 42px; gap: 4px; flex-direction: column; }

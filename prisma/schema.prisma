@@ -22,6 +22,7 @@ model Security {
   transactions       Transaction[]
   aliases            SecurityAlias[]
   quote              PriceQuote?
+  snapshots          SecuritySnapshot[]
 
   @@index([ticker])
   @@index([assetType])
@@ -108,5 +109,18 @@ model PortfolioSnapshot {
   realizedPnlChf     Decimal
   source             String   @default("HISTORICAL_CLOSE")
 
+  @@index([timestamp])
+}
+
+model SecuritySnapshot {
+  id              String   @id @default(cuid())
+  securityId      String
+  timestamp       DateTime
+  marketValueChf  Decimal
+  totalPnlChf     Decimal
+  source          String   @default("HISTORICAL_CLOSE")
+  security        Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+
+  @@unique([securityId, timestamp])
   @@index([timestamp])
 }

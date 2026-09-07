@@ -22,7 +22,10 @@ export interface HistoryRebuildReport {
 export async function rebuildPortfolioHistory(currentTimestamp = new Date()): Promise<HistoryRebuildReport> {
   const portfolio = await loadPortfolio();
   if (portfolio.accountingTransactions.length === 0) {
-    await prisma.portfolioSnapshot.deleteMany();
+    await prisma.$transaction([
+      prisma.securitySnapshot.deleteMany(),
+      prisma.portfolioSnapshot.deleteMany(),
+    ]);
     return { snapshotsCreated: 0, intradaySnapshotsCreated: 0, skippedDays: 0, warnings: [] };
   }
 
@@ -161,11 +164,17 @@ export async function rebuildPortfolioHistory(currentTimestamp = new Date()): Pr
   });
   const snapshots = [...reconstructed.snapshots, ...intraday.snapshots]
     .sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime());
+  const securitySnapshots = [...reconstructed.securitySnapshots, ...intraday.securitySnapshots]
+    .sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime());
 
   await prisma.$transaction(async (tx) => {
+    await tx.securitySnapshot.deleteMany();
     await tx.portfolioSnapshot.deleteMany();
     if (snapshots.length > 0) {
       await tx.portfolioSnapshot.createMany({ data: snapshots });
+    }
+    if (securitySnapshots.length > 0) {
+      await tx.securitySnapshot.createMany({ data: securitySnapshots });
     }
   }, { timeout: 120_000 });
 

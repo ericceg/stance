@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { indexChartPoints, prepareChartData, type ChartSnapshot } from "./chart-data";
+import { aggregateChartSeries, indexChartPoints, prepareChartData, type ChartSnapshot } from "./chart-data";
 
 function point(timestamp: string, value: number, source: ChartSnapshot["source"] = "INTRADAY_COMPARABLE"): ChartSnapshot {
   return { timestamp, totalPnlChf: value, portfolioValueChf: value + 1000, source, isLive: source === "LIVE_ESTIMATE" };
@@ -81,5 +81,13 @@ describe("canvas chart timestamps", () => {
     const indexed = indexChartPoints(fullData, true);
     expect([...indexed.keys()]).toEqual([Date.parse("2026-09-04T00:00:00Z") / 1000]);
     expect([...indexed.values()][0].timestamp).toBe("2026-09-04T23:59:59.999Z");
+  });
+});
+
+describe("security chart aggregation", () => {
+  it("sums selected series at matching timestamps", () => {
+    const first = prepareChartData([point("2026-09-01T10:00:00Z", 10), point("2026-09-02T10:00:00Z", 20)], "ALL", "pnl", "day").fullData;
+    const second = prepareChartData([point("2026-09-01T10:00:00Z", 3), point("2026-09-02T10:00:00Z", 7)], "ALL", "pnl", "day").fullData;
+    expect(aggregateChartSeries([first, second]).map((item) => item.displayValue)).toEqual([13, 27]);
   });
 });

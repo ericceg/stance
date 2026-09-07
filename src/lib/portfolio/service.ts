@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { calculateCashChf, calculatePortfolio } from "./accounting";
-import { buildPortfolioHistory } from "./history";
+import { buildPortfolioHistory, type SnapshotSource } from "./history";
 import { TRANSACTION_TYPES, type AccountingTransaction, type TransactionType } from "./types";
 
 function toNumber(value: { toNumber(): number } | null) {
@@ -13,12 +13,13 @@ function hasComparableLiveQuotes(positions: Array<{ quantity: number; quote: { p
 }
 
 export async function loadPortfolio() {
-  const [securities, brokerAccounts, transactions, quotes, snapshots] = await Promise.all([
+  const [securities, brokerAccounts, transactions, quotes, snapshots, securitySnapshots] = await Promise.all([
     prisma.security.findMany({ orderBy: { name: "asc" } }),
     prisma.brokerAccount.findMany({ orderBy: { brokerName: "asc" } }),
     prisma.transaction.findMany({ orderBy: [{ timestamp: "asc" }, { createdAt: "asc" }] }),
     prisma.priceQuote.findMany(),
     prisma.portfolioSnapshot.findMany({ orderBy: { timestamp: "asc" } }),
+    prisma.securitySnapshot.findMany({ orderBy: { timestamp: "asc" } }),
   ]);
 
   const knownTransactions = transactions.filter((transaction) => (TRANSACTION_TYPES as readonly string[]).includes(transaction.type));
@@ -92,6 +93,7 @@ export async function loadPortfolio() {
     securities,
     brokerAccounts,
     snapshots,
+    securitySnapshots,
   };
 }
 
@@ -101,16 +103,28 @@ export async function recordCurrentPortfolioSnapshot() {
   const data = await loadPortfolio();
   const isComparableWithHistoricalCloses = hasComparableLiveQuotes(data.summary.positions);
   if (!isComparableWithHistoricalCloses) return null;
-  return prisma.portfolioSnapshot.create({
-    data: {
-      timestamp: new Date(),
-      portfolioValueChf: data.summary.portfolioValueChf,
-      investedCapitalChf: data.summary.investedCapitalChf,
-      cashChf: data.summary.cashChf,
-      unrealizedPnlChf: data.summary.unrealizedPnlChf,
-      realizedPnlChf: data.summary.realizedPnlChf,
+  const timestamp = new Date();
+  return prisma.$transaction(async (tx) => {
+    const snapshot = await tx.portfolioSnapshot.create({
+      data: {
+        timestamp,
+        portfolioValueChf: data.summary.portfolioValueChf,
+        investedCapitalChf: data.summary.investedCapitalChf,
+        cashChf: data.summary.cashChf,
+        unrealizedPnlChf: data.summary.unrealizedPnlChf,
+        realizedPnlChf: data.summary.realizedPnlChf,
+        source: "INTRADAY_COMPARABLE",
+      },
+    });
+    const positionSnapshots = data.summary.positions.flatMap((position) => position.marketValueChf === null || position.totalPnlChf === null ? [] : [{
+      securityId: position.securityId,
+      timestamp,
+      marketValueChf: position.marketValueChf,
+      totalPnlChf: position.totalPnlChf,
       source: "INTRADAY_COMPARABLE",
-    },
+    }]);
+    if (positionSnapshots.length > 0) await tx.securitySnapshot.createMany({ data: positionSnapshots });
+    return snapshot;
   });
 }
 
@@ -200,6 +214,39 @@ export async function getDashboardData() {
     hasTransactions: data.transactions.length > 0,
     currentSource: hasComparableLiveQuotes(data.summary.positions) ? "INTRADAY_COMPARABLE" : "LIVE_ESTIMATE",
   });
+  const currentSource: SnapshotSource = hasComparableLiveQuotes(data.summary.positions) ? "INTRADAY_COMPARABLE" : "LIVE_ESTIMATE";
+  const currentHistoryTimestamp = history.points.at(-1)!.timestamp;
+  const snapshotsBySecurity = new Map<string, typeof data.securitySnapshots>();
+  for (const snapshot of data.securitySnapshots) {
+    const list = snapshotsBySecurity.get(snapshot.securityId) ?? [];
+    list.push(snapshot);
+    snapshotsBySecurity.set(snapshot.securityId, list);
+  }
+  const securitySeries = positions.flatMap((position) => {
+    if (position.marketValueChf === null || position.totalPnlChf === null) return [];
+    const recorded = snapshotsBySecurity.get(position.securityId) ?? [];
+    return [{
+      securityId: position.securityId,
+      ticker: position.security.ticker,
+      name: position.security.name,
+      snapshots: [
+        ...recorded.map((snapshot) => ({
+          timestamp: snapshot.timestamp.toISOString(),
+          portfolioValueChf: snapshot.marketValueChf.toNumber(),
+          totalPnlChf: snapshot.totalPnlChf.toNumber(),
+          isLive: false,
+          source: snapshot.source as SnapshotSource,
+        })),
+        {
+          timestamp: currentHistoryTimestamp,
+          portfolioValueChf: position.marketValueChf,
+          totalPnlChf: position.totalPnlChf,
+          isLive: true,
+          source: currentSource,
+        },
+      ],
+    }];
+  });
 
   return {
     summary: {
@@ -218,6 +265,7 @@ export async function getDashboardData() {
     positions,
     issues: data.summary.issues,
     snapshots: history.points,
+    securitySeries,
     recordedSnapshotCount: history.recordedPointCount,
     hasTransactions: data.transactions.length > 0,
     allocation: {

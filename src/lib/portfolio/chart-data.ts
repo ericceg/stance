@@ -98,3 +98,16 @@ export function indexChartPoints(points: ChartPoint[], daily: boolean) {
   }
   return indexed;
 }
+
+export function aggregateChartSeries(series: ChartPoint[][]): ChartPoint[] {
+  const totals = new Map<number, ChartPoint>();
+  for (const points of series) {
+    for (const point of points) {
+      const existing = totals.get(point.time);
+      totals.set(point.time, existing
+        ? { ...existing, displayValue: existing.displayValue + point.displayValue }
+        : { ...point });
+    }
+  }
+  return [...totals.values()].sort((left, right) => left.time - right.time);
+}

@@ -47,6 +47,7 @@ const transactions: SeedTransaction[] = [
 ];
 
 async function main() {
+  await prisma.securitySnapshot.deleteMany();
   await prisma.portfolioSnapshot.deleteMany();
   await prisma.priceQuote.deleteMany();
   await prisma.transaction.deleteMany();
@@ -154,6 +155,7 @@ async function main() {
 
   const snapshotEnd = new Date("2026-08-31T18:00:00Z");
   const snapshots = [];
+  const securitySnapshots = [];
   for (let daysAgo = 120; daysAgo >= 0; daysAgo -= 1) {
     const progress = (120 - daysAgo) / 120;
     const wave = Math.sin(progress * Math.PI * 8) * 420 + Math.cos(progress * Math.PI * 3) * 160;
@@ -170,8 +172,19 @@ async function main() {
       unrealizedPnlChf: Math.max(0, portfolioValueChf - summary.netContributionsChf - summary.realizedPnlChf),
       realizedPnlChf: summary.realizedPnlChf,
     });
+    for (const [index, position] of summary.positions.entries()) {
+      if (position.marketValueChf === null || position.totalPnlChf === null) continue;
+      const positionWave = Math.sin(progress * Math.PI * (5 + index) + index) * position.marketValueChf * 0.025;
+      securitySnapshots.push({
+        securityId: position.securityId,
+        timestamp,
+        marketValueChf: Math.max(0, position.marketValueChf * (0.9 + progress * 0.1) + positionWave),
+        totalPnlChf: position.totalPnlChf - (1 - progress) * position.marketValueChf * 0.08 + positionWave,
+      });
+    }
   }
   await prisma.portfolioSnapshot.createMany({ data: snapshots });
+  await prisma.securitySnapshot.createMany({ data: securitySnapshots });
 
   console.log(`Seeded ${transactions.length} fictional transactions across 2 broker accounts.`);
 }

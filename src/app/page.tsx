@@ -57,7 +57,7 @@ export default async function Home() {
         <div className="method-note"><Clock3 aria-hidden="true" /><span><strong>Average-cost accounting</strong><small>Fees included · CHF conversion stored per transaction</small></span></div>
       </section>
 
-      <PortfolioChart hasTransactions={data.hasTransactions} recordedSnapshotCount={data.recordedSnapshotCount} snapshots={data.snapshots} />
+      <PortfolioChart hasTransactions={data.hasTransactions} recordedSnapshotCount={data.recordedSnapshotCount} snapshots={data.snapshots} securitySeries={data.securitySeries} />
       <HoldingsTable positions={data.positions} />
     </AppShell>
   );

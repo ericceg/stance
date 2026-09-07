@@ -2,23 +2,40 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ChartNoAxesCombined, Minus, Plus, RotateCcw } from "lucide-react";
-import { AreaSeries, ColorType, CrosshairMode, LineStyle, createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
+import { AreaSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import { formatChf } from "@/lib/format";
-import { chartRanges as ranges, chartResolutions as resolutions, prepareChartData, indexChartPoints, type ChartRange as Range, type ChartResolution as Resolution, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
+import { aggregateChartSeries, chartRanges as ranges, chartResolutions as resolutions, prepareChartData, indexChartPoints, type ChartRange as Range, type ChartResolution as Resolution, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
 
 // TradingView Lightweight Charts™
 // Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
 type Metric = "pnl" | "value";
+type ComparisonMode = "individual" | "aggregate";
+interface SecurityChartSeries {
+  securityId: string;
+  ticker: string;
+  name: string;
+  snapshots: ChartSnapshot[];
+}
 interface PortfolioChartProps {
   hasTransactions: boolean;
   recordedSnapshotCount: number;
   snapshots: ChartSnapshot[];
+  securitySeries: SecurityChartSeries[];
 }
+
+interface OverlaySeries {
+  id: string;
+  label: string;
+  color: string;
+  data: ChartPoint[];
+}
+
+const overlayColors = ["#4385f5", "#e08b3e", "#a66de0", "#d85c78", "#18a6a6", "#8d9b3f"];
 
 const dateFormat = new Intl.DateTimeFormat("en-CH", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 const timeFormat = new Intl.DateTimeFormat("en-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
-function TradingPlot({ data, daily, metric, area }: { data: ChartPoint[]; daily: boolean; metric: Metric; area: boolean }) {
+function TradingPlot({ data, daily, metric, area, overlays }: { data: ChartPoint[]; daily: boolean; metric: Metric; area: boolean; overlays: OverlaySeries[] }) {
   const container = useRef<HTMLDivElement>(null);
   const readout = useRef<HTMLOutputElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -58,6 +75,18 @@ function TradingPlot({ data, daily, metric, area }: { data: ChartPoint[]; daily:
     // The canvas engine supports full intraday history; deduplicate to its second precision.
     const points = indexChartPoints(data, daily);
     series.setData([...points].map(([time, point]) => ({ time: time as UTCTimestamp, value: point.displayValue })));
+    for (const overlay of overlays) {
+      const overlaySeries = chart.addSeries(LineSeries, {
+        color: overlay.color,
+        lineWidth: 2,
+        title: overlay.label,
+        priceLineVisible: false,
+        crosshairMarkerRadius: 3,
+        priceFormat: { type: "price", precision: 2, minMove: 0.01 },
+      });
+      const overlayPoints = indexChartPoints(overlay.data, daily);
+      overlaySeries.setData([...overlayPoints].map(([time, point]) => ({ time: time as UTCTimestamp, value: point.displayValue })));
+    }
     chart.timeScale().fitContent();
     chartRef.current = chart;
     seriesRef.current = series;
@@ -81,11 +110,11 @@ function TradingPlot({ data, daily, metric, area }: { data: ChartPoint[]; daily:
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [data, daily, metric]);
+  }, [data, daily, metric, overlays]);
 
   useEffect(() => {
     seriesRef.current?.applyOptions({ topColor: area ? "rgba(63, 155, 106, 0.16)" : "transparent", bottomColor: "rgba(63, 155, 106, 0)" });
-  }, [area, data, daily, metric]);
+  }, [area, data, daily, metric, overlays]);
 
   const zoom = (factor: number) => {
     const scale = chartRef.current?.timeScale();
@@ -97,7 +126,7 @@ function TradingPlot({ data, daily, metric, area }: { data: ChartPoint[]; daily:
   };
 
   return <div className="trading-plot">
-    <div className="trading-readout"><span>{metric === "pnl" ? "Portfolio P&L" : "Portfolio value"} · CHF</span><output ref={readout} aria-live="off" /></div>
+    <div className="trading-readout"><span>{metric === "pnl" ? "Portfolio P&L" : "Portfolio value"} · CHF</span>{overlays.map((overlay) => <span className="overlay-key" key={overlay.id}><i style={{ backgroundColor: overlay.color }} />{overlay.label}</span>)}<output ref={readout} aria-live="off" /></div>
     <div ref={container} className="trading-canvas" role="img" aria-label={`${daily ? "Daily" : "Intraday"} ${metric === "pnl" ? "profit and loss" : "portfolio value"} chart. Drag to pan, scroll to zoom. Values are shown above the chart.`} />
     <div className="trading-navigation" aria-label="Chart navigation">
       <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => zoom(1.5)}><Minus /></button>
@@ -107,15 +136,31 @@ function TradingPlot({ data, daily, metric, area }: { data: ChartPoint[]; daily:
   </div>;
 }
 
-export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapshots }: PortfolioChartProps) {
+export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapshots, securitySeries }: PortfolioChartProps) {
   const [range, setRange] = useState<Range>("1M");
   const [metric, setMetric] = useState<Metric>("pnl");
   const [area, setArea] = useState(true);
   const [resolution, setResolution] = useState<Resolution>("auto");
+  const [selectedSecurityIds, setSelectedSecurityIds] = useState<string[]>([]);
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("individual");
   const { fullData: data, displayPoint, chartValue, change, low, high, daily, resolution: selectedResolution } = useMemo(
     () => prepareChartData(snapshots, range, metric, resolution), [snapshots, range, metric, resolution],
   );
   const resolutionLabel = selectedResolution[0].toUpperCase() + selectedResolution.slice(1);
+  const selectedSeries = useMemo(() => securitySeries.filter((series) => selectedSecurityIds.includes(series.securityId)).map((series, index) => ({
+    ...series,
+    color: overlayColors[index % overlayColors.length],
+    data: prepareChartData(series.snapshots, range, metric, resolution).fullData,
+  })), [securitySeries, selectedSecurityIds, range, metric, resolution]);
+  const overlays = useMemo<OverlaySeries[]>(() => {
+    const plottable = selectedSeries.filter((series) => series.data.length >= 2);
+    if (comparisonMode === "aggregate" && plottable.length > 0) {
+      return [{ id: "selected-total", label: `Selected (${plottable.length})`, color: overlayColors[0], data: aggregateChartSeries(plottable.map((series) => series.data)) }];
+    }
+    return plottable.map((series) => ({ id: series.securityId, label: series.ticker, color: series.color, data: series.data }));
+  }, [comparisonMode, selectedSeries]);
+  const hasMissingSelectedHistory = selectedSeries.some((series) => series.data.length < 2);
+  const allSecuritiesSelected = securitySeries.length > 0 && selectedSecurityIds.length === securitySeries.length;
   const liveEstimate = displayPoint?.source === "LIVE_ESTIMATE" ? displayPoint.displayValue : null;
   const hasTrend = data.length >= 2 && recordedSnapshotCount >= 2;
 
@@ -136,15 +181,27 @@ export function PortfolioChart({ hasTransactions, recordedSnapshotCount, snapsho
         </div>
       </div>
     </header>
+    {securitySeries.length > 0 ? <div className="comparison-toolbar">
+      <span>Holdings</span>
+      <div className="holding-tabs" aria-label="Holdings shown on chart">
+        <button type="button" aria-pressed={selectedSecurityIds.length === 0} onClick={() => setSelectedSecurityIds([])}>None</button>
+        <button type="button" aria-pressed={allSecuritiesSelected} onClick={() => setSelectedSecurityIds(securitySeries.map((series) => series.securityId))}>All</button>
+        {securitySeries.map((series) => <button key={series.securityId} title={series.name} type="button" aria-pressed={selectedSecurityIds.includes(series.securityId)} onClick={() => setSelectedSecurityIds((current) => current.includes(series.securityId) ? current.filter((id) => id !== series.securityId) : [...current, series.securityId])}>{series.ticker}</button>)}
+      </div>
+      <div className="comparison-mode" aria-label="Holding chart mode">
+        <button type="button" aria-pressed={comparisonMode === "individual"} onClick={() => setComparisonMode("individual")}>Separate</button>
+        <button type="button" aria-pressed={comparisonMode === "aggregate"} onClick={() => setComparisonMode("aggregate")}>Combined</button>
+      </div>
+    </div> : null}
     <div className="trading-summary">
       <div className="terminal-value-row"><strong>{formatChf(chartValue, { signed: metric === "pnl" })}</strong><span className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}<small>{range}</small></span></div>
       <div className="trading-extremes"><span>{daily ? `${resolutionLabel} high` : "High"} <strong>{formatChf(high)}</strong></span><span>{daily ? `${resolutionLabel} low` : "Low"} <strong>{formatChf(low)}</strong></span></div>
     </div>
-    {hasTrend ? <TradingPlot data={data} daily={daily} metric={metric} area={area} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
+    {hasTrend ? <TradingPlot data={data} daily={daily} metric={metric} area={area} overlays={overlays} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
     <div className="trading-bottom-bar">
       <div className="range-tabs" aria-label="Chart time range">{ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} aria-pressed={item === range} onClick={() => setRange(item)} type="button">{item}</button>)}</div>
       <span>{resolutionLabel} intervals · UTC<span className="trading-gesture-hint"> · Drag to pan · Scroll to zoom</span></span>
     </div>
-    <footer className="trading-note"><span>{selectedResolution === "intraday" ? "Intraday detail available for the latest 7 days" : `Last available valuation each ${selectedResolution}`}</span>{liveEstimate !== null ? <span>Live estimate <strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong> · excluded from chart</span> : null}</footer>
+    <footer className="trading-note"><span>{selectedResolution === "intraday" ? "Intraday detail available for the latest 7 days" : `Last available valuation each ${selectedResolution}`}</span>{hasMissingSelectedHistory ? <span>Some holding history needs a history rebuild</span> : null}{liveEstimate !== null ? <span>Live estimate <strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong> · excluded from chart</span> : null}</footer>
   </section>;
 }

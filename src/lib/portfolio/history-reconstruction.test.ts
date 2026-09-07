@@ -44,6 +44,8 @@ describe("historical portfolio reconstruction", () => {
     expect(result.snapshots).toHaveLength(2);
     expect(result.snapshots.map((snapshot) => snapshot.portfolioValueChf)).toEqual([1_100, 1_700]);
     expect(result.snapshots.map((snapshot) => snapshot.unrealizedPnlChf)).toEqual([100, 200]);
+    expect(result.securitySnapshots.map((snapshot) => snapshot.marketValueChf)).toEqual([900, 1_000]);
+    expect(result.securitySnapshots.map((snapshot) => snapshot.totalPnlChf)).toEqual([100, 200]);
   });
 
   it("skips days where an open position cannot be valued", () => {
@@ -80,5 +82,6 @@ describe("historical portfolio reconstruction", () => {
     expect(result.snapshots).toHaveLength(2);
     expect(result.snapshots.map((snapshot) => snapshot.unrealizedPnlChf)).toEqual([10, 20]);
     expect(result.snapshots.every((snapshot) => snapshot.source === "INTRADAY_COMPARABLE")).toBe(true);
+    expect(result.securitySnapshots.map((snapshot) => snapshot.marketValueChf)).toEqual([810, 820]);
   });
 });
