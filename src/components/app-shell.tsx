@@ -6,6 +6,7 @@ import {
   Landmark,
   LayoutDashboard,
   Plus,
+  ReceiptText,
   Settings2,
   TriangleAlert,
   WalletCards,
@@ -16,6 +17,7 @@ const navigation = [
   { href: "/breakdown", label: "Breakdown", icon: ChartPie },
   { href: "/#holdings", label: "Holdings", icon: WalletCards },
   { href: "/transactions", label: "Transactions", icon: Landmark },
+  { href: "/fees", label: "Fees", icon: ReceiptText },
   { href: "/import", label: "Import", icon: ArrowDownToLine },
 ];
 

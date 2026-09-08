@@ -6,12 +6,14 @@ import { getDashboardData } from "@/lib/portfolio/service";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewTransactionPage() {
-  const [accounts, securities, dashboard] = await Promise.all([
+export default async function NewTransactionPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
+  const [accounts, securities, dashboard, query] = await Promise.all([
     prisma.brokerAccount.findMany({ orderBy: { brokerName: "asc" } }),
     prisma.security.findMany({ orderBy: { name: "asc" } }),
     getDashboardData(),
+    searchParams,
   ]);
+  const initialType = query.type === "FEE" ? "FEE" : "BUY";
 
   return (
     <AppShell active="Transactions" eyebrow="Manual entry" issueCount={dashboard.issues.length} title="Add transaction">
@@ -21,6 +23,7 @@ export default async function NewTransactionPage() {
           <TransactionForm
             accounts={accounts.map((account) => ({ id: account.id, brokerName: account.brokerName, accountName: account.accountName, baseCurrency: account.baseCurrency }))}
             defaultDate={new Date().toISOString().slice(0, 10)}
+            initialType={initialType}
             securities={securities.map((security) => ({ id: security.id, name: security.name, ticker: security.ticker, tradingCurrency: security.tradingCurrency }))}
           />
         </section>

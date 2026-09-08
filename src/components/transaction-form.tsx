@@ -12,15 +12,18 @@ export function TransactionForm({
   accounts,
   securities,
   defaultDate,
+  initialType = "BUY",
 }: {
   accounts: { id: string; brokerName: string; accountName: string; baseCurrency: string }[];
   securities: { id: string; name: string; ticker: string; tradingCurrency: string }[];
   defaultDate: string;
+  initialType?: TransactionType;
 }) {
   const [state, action, pending] = useActionState(createTransactionAction, initialState);
-  const [type, setType] = useState<TransactionType>("BUY");
+  const [type, setType] = useState<TransactionType>(initialType);
   const [currency, setCurrency] = useState("CHF");
   const isTrade = type === "BUY" || type === "SELL";
+  const isStandaloneFee = type === "FEE";
   const requiresSecurity = isTrade || type === "DIVIDEND";
 
   return (
@@ -66,7 +69,7 @@ export function TransactionForm({
 
       <div className="form-section">
         <h2>{isTrade ? "Execution" : "Cash value"}</h2>
-        <p>{isTrade ? "Gross value is calculated as quantity × execution price." : "Enter the gross cash amount before fees."}</p>
+        <p>{isTrade ? "Gross value is calculated as quantity × execution price." : isStandaloneFee ? "Record the full charge that left this broker account." : "Enter the gross cash amount before fees."}</p>
         <div className="field-grid">
           {isTrade ? <>
             <div className="field">
@@ -81,7 +84,7 @@ export function TransactionForm({
             </div>
           </> : (
             <div className="field field-span">
-              <label htmlFor="totalValue">Gross value</label>
+              <label htmlFor="totalValue">{isStandaloneFee ? "Fee amount" : "Gross value"}</label>
               <input id="totalValue" inputMode="decimal" min="0" name="totalValue" placeholder="0.00" step="any" type="number" required />
               {state.fieldErrors?.totalValue ? <small className="field-error">{state.fieldErrors.totalValue[0]}</small> : null}
             </div>
@@ -99,11 +102,11 @@ export function TransactionForm({
             <input id="automatic-fx" readOnly value="Automatic" />
             <small>The {currency || "currency"}/CHF reference rate is looked up for the transaction date.</small>
           </div>
-          <div className="field">
+          {isStandaloneFee ? <input name="fee" type="hidden" value="0" /> : <div className="field">
             <label htmlFor="fee">Fee <span>In transaction currency</span></label>
             <input defaultValue="0" id="fee" inputMode="decimal" min="0" name="fee" step="any" type="number" />
             {state.fieldErrors?.fee ? <small className="field-error">{state.fieldErrors.fee[0]}</small> : null}
-          </div>
+          </div>}
         </div>
       </div>
 

@@ -87,6 +87,7 @@ export async function createTransactionAction(
   }
 
   revalidatePath("/");
+  revalidatePath("/fees");
   revalidatePath("/transactions");
   redirect("/transactions?created=1");
 }
@@ -94,6 +95,7 @@ export async function createTransactionAction(
 export async function deleteTransactionAction(id: string) {
   await prisma.transaction.delete({ where: { id } });
   revalidatePath("/");
+  revalidatePath("/fees");
   revalidatePath("/transactions");
 }
 
@@ -103,5 +105,6 @@ export async function clearTransactionsAction() {
     prisma.portfolioSnapshot.deleteMany(),
   ]);
   revalidatePath("/");
+  revalidatePath("/fees");
   revalidatePath("/transactions");
 }
