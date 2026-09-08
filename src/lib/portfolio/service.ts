@@ -13,7 +13,7 @@ function hasComparableLiveQuotes(positions: Array<{ quantity: number; quote: { p
 }
 
 export async function loadPortfolio() {
-  const [securities, brokerAccounts, transactions, quotes, snapshots, securitySnapshots, regionalExposures] = await Promise.all([
+  const [securities, brokerAccounts, transactions, quotes, snapshots, securitySnapshots, regionalExposures, underlyingHoldings] = await Promise.all([
     prisma.security.findMany({ orderBy: { name: "asc" } }),
     prisma.brokerAccount.findMany({ orderBy: { brokerName: "asc" } }),
     prisma.transaction.findMany({ orderBy: [{ timestamp: "asc" }, { createdAt: "asc" }] }),
@@ -21,6 +21,7 @@ export async function loadPortfolio() {
     prisma.portfolioSnapshot.findMany({ orderBy: { timestamp: "asc" } }),
     prisma.securitySnapshot.findMany({ orderBy: { timestamp: "asc" } }),
     prisma.securityRegionalExposure.findMany({ orderBy: [{ securityId: "asc" }, { region: "asc" }] }),
+    prisma.securityUnderlyingHolding.findMany({ orderBy: [{ securityId: "asc" }, { constituentName: "asc" }] }),
   ]);
 
   const knownTransactions = transactions.filter((transaction) => (TRANSACTION_TYPES as readonly string[]).includes(transaction.type));
@@ -96,6 +97,7 @@ export async function loadPortfolio() {
     snapshots,
     securitySnapshots,
     regionalExposures,
+    underlyingHoldings,
   };
 }
 
@@ -139,6 +141,12 @@ export async function getDashboardData() {
     rows.push(exposure);
     regionalExposureBySecurity.set(exposure.securityId, rows);
   }
+  const underlyingHoldingsBySecurity = new Map<string, typeof data.underlyingHoldings>();
+  for (const holding of data.underlyingHoldings) {
+    const rows = underlyingHoldingsBySecurity.get(holding.securityId) ?? [];
+    rows.push(holding);
+    underlyingHoldingsBySecurity.set(holding.securityId, rows);
+  }
 
   const positions = data.summary.positions
     .filter((position) => position.quantity > 0)
@@ -162,6 +170,15 @@ export async function getDashboardData() {
         sourceUrl: exposure.sourceUrl,
         asOf: exposure.asOf?.toISOString() ?? null,
         updatedAt: exposure.updatedAt.toISOString(),
+      })),
+      underlyingHoldings: (underlyingHoldingsBySecurity.get(position.securityId) ?? []).map((holding) => ({
+        ticker: holding.constituentTicker,
+        name: holding.constituentName,
+        weight: holding.weight.toNumber(),
+        source: holding.source,
+        sourceUrl: holding.sourceUrl,
+        asOf: holding.asOf?.toISOString() ?? null,
+        updatedAt: holding.updatedAt.toISOString(),
       })),
     }));
 

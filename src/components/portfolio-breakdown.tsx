@@ -60,7 +60,12 @@ function allocationRows(positions: Position[], accountCash: AccountCash, dimensi
   for (const position of positions) {
     const value = metricValue(position, metric);
     if (dimension === "holding") grouped.set(position.security.name, value);
-    if (dimension === "stock" && position.security.assetType === "STOCK") grouped.set(position.security.name, value);
+    if (dimension === "stock") {
+      if (position.security.assetType === "STOCK") grouped.set(position.security.name, (grouped.get(position.security.name) ?? 0) + value);
+      if (position.security.assetType === "ETF") for (const holding of position.underlyingHoldings) {
+        grouped.set(holding.name, (grouped.get(holding.name) ?? 0) + value * holding.weight / 100);
+      }
+    }
     if (dimension === "etf" && position.security.assetType === "ETF") grouped.set(position.security.name, value);
     if (dimension === "asset") {
       const label = position.security.assetType === "ETF" ? "ETFs" : position.security.assetType === "STOCK" ? "Stocks" : "Other";
@@ -95,7 +100,7 @@ function allocationRows(positions: Position[], accountCash: AccountCash, dimensi
 function dimensionLabel(dimension: Dimension) {
   const labels: Record<Dimension, string> = {
     holding: "Holdings",
-    stock: "Stocks",
+    stock: "Stocks (look-through)",
     etf: "ETFs",
     asset: "Asset type",
     region: "Region",
@@ -138,6 +143,14 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
   const worstContributor = [...positions].sort((left, right) => (left.totalPnlChf ?? Infinity) - (right.totalPnlChf ?? Infinity))[0];
   const currencies = [...new Set(positions.map((position) => position.security.tradingCurrency))].sort();
   const assets = [...new Set(positions.map((position) => position.security.assetType))].sort();
+  const underlyingCoverage = useMemo(() => {
+    const etfValue = positions.filter((position) => position.security.assetType === "ETF").reduce((total, position) => total + (position.marketValueChf ?? 0), 0);
+    const coveredValue = positions.filter((position) => position.security.assetType === "ETF").reduce((total, position) => {
+      const coveredWeight = Math.min(100, position.underlyingHoldings.reduce((weight, holding) => weight + holding.weight, 0));
+      return total + (position.marketValueChf ?? 0) * coveredWeight / 100;
+    }, 0);
+    return { etfValue, percent: etfValue === 0 ? 100 : coveredValue / etfValue * 100 };
+  }, [positions]);
 
   const filteredPositions = useMemo(() => positions
     .filter((position) => assetFilter === "all" || position.security.assetType === assetFilter)
@@ -203,8 +216,9 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
           </div>
           <div className="breakdown-ranking">
             <div className="breakdown-ranking-head"><span>{metricLabels[metric]} by {dimensionLabel(dimension)}</span><strong>{formatChf(rows.reduce((total, row) => total + row.value, 0), { signed: metric === "pnl" || metric === "today" })}</strong></div>
+            {dimension === "stock" && underlyingCoverage.etfValue > 0 ? <p className="breakdown-coverage">ETF constituent coverage: <strong>{formatPercent(underlyingCoverage.percent)}</strong></p> : null}
             {rows.map((row, index) => <div className="breakdown-rank" key={row.name}><div><i style={{ background: colors[index % colors.length] }} /><span>{row.name}</span><strong className={metric === "pnl" || metric === "today" ? toneForValue(row.value) : ""}>{formatChf(row.value, { signed: metric === "pnl" || metric === "today" })}</strong></div><div className="breakdown-bar"><i style={{ background: colors[index % colors.length], width: `${magnitudeTotal === 0 ? 0 : (Math.abs(row.value) / magnitudeTotal) * 100}%` }} /></div><small>{formatPercent(magnitudeTotal === 0 ? 0 : (Math.abs(row.value) / magnitudeTotal) * 100)} of {metric === "pnl" || metric === "today" ? "absolute result" : "total"}</small></div>)}
-            {rows.length === 0 ? <p className="breakdown-empty">{dimension === "stock" ? "No direct stock positions for this measure yet." : dimension === "etf" ? "No ETF positions for this measure yet." : "No non-zero values for this measure yet."}</p> : null}
+            {rows.length === 0 ? <p className="breakdown-empty">{dimension === "stock" ? "Add ETF constituents below to see your look-through stock exposure." : dimension === "etf" ? "No ETF positions for this measure yet." : "No non-zero values for this measure yet."}</p> : null}
           </div>
         </div>
       </section>

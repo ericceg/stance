@@ -52,6 +52,7 @@ async function main() {
   await prisma.priceQuote.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.securityAlias.deleteMany();
+  await prisma.securityUnderlyingHolding.deleteMany();
   await prisma.security.deleteMany();
   await prisma.brokerAccount.deleteMany();
 
@@ -80,6 +81,16 @@ async function main() {
       { securityId: ids.nesn, region: "Europe", weight: 100, source: "SEED" },
       { securityId: ids.on, region: "North America", weight: 100, source: "SEED" },
       { securityId: ids.eimi, region: "Emerging Markets", weight: 100, source: "SEED" },
+    ],
+  });
+
+  await prisma.securityUnderlyingHolding.createMany({
+    data: [
+      { securityId: ids.vwce, constituentTicker: "NVDA", constituentName: "NVIDIA Corporation", weight: 4.14, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
+      { securityId: ids.vwce, constituentTicker: "AAPL", constituentName: "Apple Inc.", weight: 3.69, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
+      { securityId: ids.vwce, constituentTicker: "MSFT", constituentName: "Microsoft Corporation", weight: 3.13, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
+      { securityId: ids.eimi, constituentTicker: "TSM", constituentName: "Taiwan Semiconductor Manufacturing", weight: 10.24, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
+      { securityId: ids.eimi, constituentTicker: "TCEHY", constituentName: "Tencent Holdings", weight: 3.64, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
     ],
   });
 

@@ -24,9 +24,27 @@ model Security {
   quote              PriceQuote?
   snapshots          SecuritySnapshot[]
   regionalExposures  SecurityRegionalExposure[]
+  underlyingHoldings SecurityUnderlyingHolding[]
 
   @@index([ticker])
   @@index([assetType])
+}
+
+model SecurityUnderlyingHolding {
+  id                String   @id @default(cuid())
+  securityId        String
+  constituentTicker String
+  constituentName   String
+  weight            Decimal
+  source            String
+  sourceUrl         String?
+  asOf              DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  security          Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+
+  @@unique([securityId, constituentTicker])
+  @@index([securityId])
 }
 
 model SecurityRegionalExposure {
