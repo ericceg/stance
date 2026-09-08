@@ -425,12 +425,12 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .region-data-panel { overflow: hidden; }
 .constituent-data-panel { overflow: hidden; }
 .constituent-data-heading { align-items: center; padding: 19px 22px 13px; }
-.constituent-data-heading > span { color: var(--muted); font-size: 8px; }
+.constituent-data-heading form { margin-left: auto; }
 .constituent-data-copy { padding: 0 22px 15px; color: var(--muted); font-size: 9px; line-height: 1.55; }
 .constituent-editor { display: grid; gap: 13px; padding: 16px 22px 19px; border-top: 1px solid var(--line); background: var(--surface-soft); }
 .constituent-editor textarea { width: 100%; resize: vertical; padding: 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-strong); color: var(--ink); font: 10px/1.55 var(--font-geist-mono); outline: none; }
 .constituent-editor textarea:focus { border-color: var(--green); }
-.constituent-editor-actions { display: flex; justify-content: flex-end; }
+.constituent-editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .constituent-data-panel > .import-result { margin: 0 22px 18px; }
 .region-data-heading { align-items: center; padding: 19px 22px 15px; }
 .region-data-heading form { margin-left: auto; }
@@ -456,6 +456,7 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 @media (max-width: 620px) {
   .region-data-heading { align-items: stretch; flex-direction: column; }
   .constituent-data-heading { align-items: flex-start; flex-direction: column; }
+  .constituent-data-heading form, .constituent-data-heading button { width: 100%; }
   .region-data-heading form, .region-data-heading button { width: 100%; }
   .region-weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .region-editor-actions { align-items: stretch; flex-direction: column; }

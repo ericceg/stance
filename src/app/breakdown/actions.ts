@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { PORTFOLIO_REGIONS, refreshRegionalExposures } from "@/lib/portfolio/regional-exposure";
+import { refreshUnderlyingHoldings } from "@/lib/portfolio/underlying-holdings";
 
 export interface RegionalExposureActionState {
   error?: string;
@@ -140,4 +141,35 @@ export async function saveManualUnderlyingHoldingsAction(
   });
   revalidatePortfolio();
   return { message: parsed.rows.length === 0 ? `Cleared constituents for ${security.name}.` : `Saved ${parsed.rows.length} constituents (${parsed.total.toFixed(2)}% coverage) for ${security.name}.` };
+}
+
+export async function refreshUnderlyingHoldingsAction(
+  _previousState: RegionalExposureActionState,
+  _formData: FormData,
+): Promise<RegionalExposureActionState> {
+  void _previousState;
+  void _formData;
+  try {
+    const report = await refreshUnderlyingHoldings();
+    revalidatePortfolio();
+    const warning = report.warnings[0] ? ` ${report.warnings[0]}` : "";
+    return { message: `Updated ${report.updated} ETFs; ${report.skippedManual} manual overrides preserved; ${report.unresolved} unsupported or unresolved.${warning}` };
+  } catch (error) {
+    console.error("ETF constituent refresh failed", error);
+    return { error: error instanceof Error ? error.message : "ETF constituents could not be refreshed." };
+  }
+}
+
+export async function restoreAutomaticUnderlyingHoldingsAction(
+  _previousState: RegionalExposureActionState,
+  formData: FormData,
+): Promise<RegionalExposureActionState> {
+  const securityId = z.string().min(1).safeParse(formData.get("securityId"));
+  if (!securityId.success) return { error: "Choose an ETF first." };
+  await prisma.securityUnderlyingHolding.deleteMany({ where: { securityId: securityId.data, source: "MANUAL" } });
+  const report = await refreshUnderlyingHoldings([securityId.data]);
+  revalidatePortfolio();
+  return report.updated > 0
+    ? { message: "Restored the automatic ETF constituents." }
+    : { message: "Manual values were cleared, but no automatic source is available for this ETF." };
 }

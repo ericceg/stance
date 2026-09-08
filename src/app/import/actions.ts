@@ -8,6 +8,7 @@ import { syncTrading212, type Trading212SyncReport } from "@/lib/import/trading2
 import { refreshOpenPositionQuotes } from "@/lib/portfolio/market-data-sync";
 import { rebuildPortfolioHistory } from "@/lib/portfolio/history-rebuild";
 import { refreshRegionalExposures } from "@/lib/portfolio/regional-exposure";
+import { refreshUnderlyingHoldings } from "@/lib/portfolio/underlying-holdings";
 
 export interface DegiroImportState {
   error?: string;
@@ -50,6 +51,16 @@ async function refreshRegionsAfterImport() {
   }
 }
 
+async function refreshUnderlyingHoldingsAfterImport() {
+  try {
+    const report = await refreshUnderlyingHoldings();
+    return report.warnings;
+  } catch (error) {
+    console.error("ETF constituent refresh failed", error);
+    return [error instanceof Error ? `ETF constituent refresh failed: ${error.message}` : "ETF constituents could not be refreshed."];
+  }
+}
+
 export async function importDegiroAction(
   _previousState: DegiroImportState,
   formData: FormData,
@@ -88,13 +99,13 @@ export async function importDegiroAction(
       csv: await file.text(),
     });
     const quoteReport = await refreshOpenPositionQuotes();
-    const [historyWarnings, regionWarnings] = await Promise.all([rebuildHistoryAfterImport(), refreshRegionsAfterImport()]);
+    const [historyWarnings, regionWarnings, constituentWarnings] = await Promise.all([rebuildHistoryAfterImport(), refreshRegionsAfterImport(), refreshUnderlyingHoldingsAfterImport()]);
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
     revalidatePath("/import");
     revalidatePath("/breakdown");
-    return { report: { ...report, quotesUpdated: quoteReport.updated, warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings, ...regionWarnings] } };
+    return { report: { ...report, quotesUpdated: quoteReport.updated, warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings, ...regionWarnings, ...constituentWarnings] } };
   } catch (error) {
     console.error("DEGIRO import failed", error);
     return { error: error instanceof Error ? error.message : "The DEGIRO statement could not be imported." };
@@ -110,7 +121,7 @@ export async function syncTrading212Action(
   try {
     const report = await syncTrading212();
     const quoteReport = await refreshOpenPositionQuotes();
-    const [historyWarnings, regionWarnings] = await Promise.all([rebuildHistoryAfterImport(), refreshRegionsAfterImport()]);
+    const [historyWarnings, regionWarnings, constituentWarnings] = await Promise.all([rebuildHistoryAfterImport(), refreshRegionsAfterImport(), refreshUnderlyingHoldingsAfterImport()]);
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
@@ -120,7 +131,7 @@ export async function syncTrading212Action(
       report: {
         ...report,
         quotesUpdated: report.quotesUpdated + quoteReport.updated,
-        warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings, ...regionWarnings],
+        warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings, ...regionWarnings, ...constituentWarnings],
       },
     };
   } catch (error) {
