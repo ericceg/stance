@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { invalidatePortfolioHistory, revalidatePortfolioViews } from "@/lib/portfolio/mutations";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { importDegiroCsv, type DegiroImportReport } from "@/lib/import/degiro-import";
@@ -26,13 +26,22 @@ const degiroFieldsSchema = z.object({
   baseCurrency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
 });
 
+async function refreshQuotesAfterImport() {
+  try {
+    return await refreshOpenPositionQuotes();
+  } catch (error) {
+    console.error("Post-import quote refresh failed", error);
+    return { updated: 0, warnings: ["Records were imported, but current prices could not be refreshed. Retry from Data issues."] };
+  }
+}
+
 async function rebuildHistoryAfterImport() {
   try {
     const report = await rebuildPortfolioHistory();
     return report.warnings;
   } catch (error) {
     console.error("Portfolio history rebuild failed", error);
-    await prisma.portfolioSnapshot.deleteMany();
+    await prisma.$transaction((tx) => invalidatePortfolioHistory(tx));
     return [error instanceof Error
       ? `Historical performance could not be rebuilt: ${error.message}`
       : "Historical performance could not be rebuilt."];
@@ -98,13 +107,9 @@ export async function importDegiroAction(
       brokerAccountId,
       csv: await file.text(),
     });
-    const quoteReport = await refreshOpenPositionQuotes();
+    const quoteReport = await refreshQuotesAfterImport();
     const [historyWarnings, regionWarnings, constituentWarnings] = await Promise.all([rebuildHistoryAfterImport(), refreshRegionsAfterImport(), refreshUnderlyingHoldingsAfterImport()]);
-    revalidatePath("/");
-    revalidatePath("/transactions");
-    revalidatePath("/data-issues");
-    revalidatePath("/import");
-    revalidatePath("/breakdown");
+    revalidatePortfolioViews();
     return { report: { ...report, quotesUpdated: quoteReport.updated, warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings, ...regionWarnings, ...constituentWarnings] } };
   } catch (error) {
     console.error("DEGIRO import failed", error);
@@ -120,13 +125,9 @@ export async function syncTrading212Action(
   void _formData;
   try {
     const report = await syncTrading212();
-    const quoteReport = await refreshOpenPositionQuotes();
+    const quoteReport = await refreshQuotesAfterImport();
     const [historyWarnings, regionWarnings, constituentWarnings] = await Promise.all([rebuildHistoryAfterImport(), refreshRegionsAfterImport(), refreshUnderlyingHoldingsAfterImport()]);
-    revalidatePath("/");
-    revalidatePath("/transactions");
-    revalidatePath("/data-issues");
-    revalidatePath("/import");
-    revalidatePath("/breakdown");
+    revalidatePortfolioViews();
     return {
       report: {
         ...report,

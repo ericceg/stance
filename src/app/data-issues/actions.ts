@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePortfolioViews } from "@/lib/portfolio/mutations";
 import { refreshOpenPositionQuotes } from "@/lib/portfolio/market-data-sync";
 import { recordCurrentPortfolioSnapshot } from "@/lib/portfolio/service";
 
@@ -15,8 +15,7 @@ export async function refreshPricesAction(): Promise<PriceRefreshState> {
     // Preserve each successful refresh as an intraday performance point. The
     // chart keeps these alongside the daily reconstructed closing history.
     const snapshot = report.updated > 0 ? await recordCurrentPortfolioSnapshot() : null;
-    revalidatePath("/");
-    revalidatePath("/data-issues");
+    revalidatePortfolioViews();
     if (report.warnings.length > 0) {
       return { error: `Refreshed ${report.updated} of ${report.attempted} prices. ${report.warnings[0]}` };
     }

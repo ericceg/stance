@@ -40,7 +40,9 @@ pure accounting engine
 server-rendered routes + focused client charts/tables/forms
 ```
 
-Positions are never manually stored. They are derived in timestamp order from transactions. A buy adds its fee to cost basis; a sell releases weighted-average cost and realizes the difference after fees. Deposits and withdrawals change contributions and cash but never investment P&L. Materially invalid rows, such as an oversell, are excluded and surfaced as a data issue instead of being silently guessed.
+Positions are never manually stored. They are derived in timestamp order from transactions. A buy adds its fee to cost basis; a sell releases weighted-average cost and realizes the difference after fees. Deposits and withdrawals change gross contributions and cash; any associated fees reduce cash and realized P&L. Materially invalid rows, such as an oversell, are excluded and surfaced as a data issue instead of being silently guessed.
+
+Manual ledger changes invalidate portfolio and security chart points from the changed transaction onward, within the same database transaction. Earlier history is retained; the next broker import reconstructs the affected history. Clearing the ledger also clears both kinds of chart history.
 
 ## Database schema
 

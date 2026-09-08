@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 const categoryDescriptions = {
   TRADING: "Commissions attached to buys and sells",
   INCOME: "Charges deducted from dividends and income",
-  ACCOUNT: "Standalone platform, connectivity, and service fees",
+  ACCOUNT: "Platform, service, and cash-transfer fees",
 };
 
 export default async function FeesPage() {

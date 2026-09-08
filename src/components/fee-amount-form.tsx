@@ -23,12 +23,12 @@ export function FeeAmountForm({
     <form action={action} className="fee-amount-form">
       <input name="transactionId" type="hidden" value={transactionId} />
       <label className="sr-only" htmlFor={`fee-${transactionId}`}>{isStandaloneFee ? "Account fee" : "Transaction fee"} in {currency}</label>
-      <div className="fee-amount-input"><span>{currency}</span><input defaultValue={amount} id={`fee-${transactionId}`} inputMode="decimal" min="0" name="amount" step="any" type="number" /></div>
+      <div className="fee-amount-input"><span>{currency}</span><input defaultValue={amount} id={`fee-${transactionId}`} inputMode="decimal" min="0" name="amount" required step="any" type="number" /></div>
       <button aria-label="Save fee" className="fee-save-button" disabled={pending} title="Save fee" type="submit">
         {pending ? <LoaderCircle className="spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
       </button>
       {state.error ? <span className="fee-form-error" role="alert">{state.error}</span> : null}
-      {state.saved ? <span className="fee-form-saved">Saved</span> : null}
+      {state.saved ? <span className="fee-form-saved" role="status">Saved</span> : null}
     </form>
   );
 }

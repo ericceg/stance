@@ -29,6 +29,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
           <table className="data-table transaction-table">
             <thead><tr><th>Date</th><th>Type</th><th>Security</th><th>Broker</th><th className="numeric">Quantity</th><th className="numeric">Price</th><th className="numeric">Gross value</th><th className="numeric">CHF value</th><th>Source</th><th aria-label="Actions" /></tr></thead>
             <tbody>
+              {transactions.length === 0 ? <tr><td colSpan={10} className="empty-table">No transactions yet. <Link href="/transactions/new">Add a transaction</Link> or <Link href="/import">import a broker statement</Link> to get started.</td></tr> : null}
               {transactions.map((transaction) => {
                 const security = transaction.securityId ? securityById.get(transaction.securityId) : null;
                 const account = accountById.get(transaction.brokerAccountId);

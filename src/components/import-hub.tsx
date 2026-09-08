@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, CheckCircle2, FileSearch, LoaderCircle, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import {
   importDegiroAction,
@@ -29,6 +29,14 @@ function ResultBanner({ children, error = false }: { children: React.ReactNode; 
   );
 }
 
+function ImportWarnings({ warnings }: { warnings: string[] }) {
+  if (warnings.length === 0) return null;
+  return <div className="setup-callout" role="status">
+    <strong>Imported with warnings</strong>
+    <ul>{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+  </div>;
+}
+
 function Trading212Sync({ configured, lastSync }: { configured: boolean; lastSync: string | null }) {
   const [state, action, pending] = useActionState(syncTrading212Action, initialTrading212State);
   return (
@@ -51,6 +59,7 @@ function Trading212Sync({ configured, lastSync }: { configured: boolean; lastSyn
           Imported {state.report.imported} new records, skipped {state.report.duplicates} duplicates, and refreshed {state.report.quotesUpdated} prices.
         </ResultBanner>
       ) : null}
+      {state.report ? <ImportWarnings warnings={state.report.warnings} /> : null}
       <form action={action} className="integration-form">
         <button className="primary-button" disabled={pending || !configured} type="submit">
           {pending ? <><LoaderCircle className="spin" />Synchronizing…</> : <><RefreshCw />Sync now</>}
@@ -70,6 +79,8 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
   const selectedAccount = accounts.find((account) => account.id === accountId);
   const [newBaseCurrency, setNewBaseCurrency] = useState("CHF");
   const baseCurrency = selectedAccount?.baseCurrency ?? newBaseCurrency;
+  const fileReadVersion = useRef(0);
+  const [readingFile, setReadingFile] = useState(false);
   const [fileName, setFileName] = useState("");
   const [fileText, setFileText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -100,6 +111,7 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
           Imported {state.report.imported} new records, skipped {state.report.duplicates} duplicates, and refreshed {state.report.quotesUpdated} prices from the {state.report.statementKind} statement.
         </ResultBanner>
       ) : null}
+      {state.report ? <ImportWarnings warnings={state.report.warnings} /> : null}
       <form action={action} className="degiro-form">
         <div className="field-grid import-fields">
           <div className="field">
@@ -132,15 +144,30 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
               <span><strong>{fileName || "Choose a CSV file"}</strong><small>Transaction statement or Account statement · 10 MB maximum</small></span>
             </label>
             <input accept=".csv,text/csv" className="visually-hidden" id="degiro-statement" name="statement" onChange={async (event) => {
+              const version = ++fileReadVersion.current;
               const file = event.target.files?.[0];
               setFileName(file?.name ?? "");
-              if (file && file.size > 10 * 1024 * 1024) {
-                setFileError("The CSV is larger than the 10 MB import limit.");
-                setFileText("");
+              setFileText("");
+              setFileError(null);
+              setReadingFile(false);
+              if (!file) return;
+              if (!file.name.toLowerCase().endsWith(".csv")) {
+                setFileError("DEGIRO imports must be CSV files.");
                 return;
               }
-              setFileError(null);
-              setFileText(file ? await file.text() : "");
+              if (file.size > 10 * 1024 * 1024) {
+                setFileError("The CSV is larger than the 10 MB import limit.");
+                return;
+              }
+              setReadingFile(true);
+              try {
+                const text = await file.text();
+                if (version === fileReadVersion.current) setFileText(text);
+              } catch {
+                if (version === fileReadVersion.current) setFileError("The file could not be read. Please select it again.");
+              } finally {
+                if (version === fileReadVersion.current) setReadingFile(false);
+              }
             }} required type="file" />
           </div>
         </div>
@@ -173,8 +200,8 @@ function DegiroImport({ accounts, lastImport }: { accounts: AccountOption[]; las
 
         <div className="import-actions">
           <span>{lastImport ? `Last imported record ${lastImport}` : "Repeated files are safe: duplicates are skipped."}</span>
-          <button className="primary-button" disabled={pending || !preview.result || preview.result.rows.length === 0} type="submit">
-            {pending ? <><LoaderCircle className="spin" />Importing…</> : <><ArrowDownToLine />Import statement</>}
+          <button className="primary-button" disabled={pending || readingFile || !preview.result || preview.result.rows.length === 0} type="submit">
+            {pending ? <><LoaderCircle className="spin" />Importing…</> : readingFile ? "Reading file…" : <><ArrowDownToLine />Import statement</>}
           </button>
         </div>
       </form>

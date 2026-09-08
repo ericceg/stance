@@ -55,3 +55,14 @@ describe("fee summaries", () => {
     expect(summary.months.find((month) => month.key === "2026-05")?.amountChf).toBe(8);
   });
 });
+
+it("classifies cash-transfer fees as account charges, excluding them from the trading fee rate", () => {
+  const summary = buildFeeSummary([
+    transaction({ id: "buy", type: "BUY", totalValueChf: 1000, feeChf: 2 }),
+    transaction({ id: "deposit", type: "DEPOSIT", feeChf: 5 }),
+    transaction({ id: "withdrawal", type: "WITHDRAWAL", feeChf: 3 }),
+  ]);
+  expect(summary.tradeFeeChf).toBe(2);
+  expect(summary.effectiveTradeFeePercent).toBe(0.2);
+  expect(summary.categories.find((item) => item.category === "ACCOUNT")?.amountChf).toBe(8);
+});

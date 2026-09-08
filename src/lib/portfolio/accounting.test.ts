@@ -135,3 +135,16 @@ describe("average-cost accounting", () => {
     expect(portfolio.portfolioValueChf).toBe(2000);
   });
 });
+
+it("deducts deposit and withdrawal charges without reducing gross contributions", () => {
+  const result = calculatePortfolio({
+    transactions: [
+      transaction({ id: "deposit-fee", type: "DEPOSIT", securityId: null, totalValueChf: 1000, feeChf: 5 }),
+      transaction({ id: "withdrawal-fee", type: "WITHDRAWAL", securityId: null, totalValueChf: 100, feeChf: 2 }),
+    ], securities: [], brokerAccounts: [accountA], quotes: [],
+  });
+  expect(result.cashChf).toBe(893);
+  expect(result.netContributionsChf).toBe(900);
+  expect(result.realizedPnlChf).toBe(-7);
+  expect(result.totalPnlChf).toBe(-7);
+});

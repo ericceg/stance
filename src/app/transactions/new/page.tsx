@@ -28,7 +28,7 @@ export default async function NewTransactionPage({ searchParams }: { searchParam
           />
         </section>
         <aside className="form-note">
-          <div className="note-block"><Calculator aria-hidden="true" /><h3>Accounting behavior</h3><p>Buy fees are added to cost basis. Sell fees reduce realized P&amp;L. Deposits and withdrawals affect cash and contributions, never investment profit.</p></div>
+          <div className="note-block"><Calculator aria-hidden="true" /><h3>Accounting behavior</h3><p>Buy fees are added to cost basis. Sell fees reduce realized P&amp;L. Deposits and withdrawals affect cash and gross contributions; their fees reduce profit.</p></div>
           <div className="note-block"><ShieldCheck aria-hidden="true" /><h3>Private by default</h3><p>Manual entries stay in your local SQLite database. No values are sent to a broker or external market-data provider.</p></div>
         </aside>
       </div>

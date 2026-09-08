@@ -11,7 +11,7 @@ export const feeCategoryLabels: Record<FeeCategory, string> = {
 };
 
 export function getFeeCategory(type: TransactionType): FeeCategory {
-  if (type === "FEE") return "ACCOUNT";
+  if (["FEE", "DEPOSIT", "WITHDRAWAL"].includes(type)) return "ACCOUNT";
   if (type === "DIVIDEND") return "INCOME";
   return "TRADING";
 }
@@ -36,7 +36,7 @@ function monthKey(date: Date) {
 }
 
 function monthLabel(date: Date) {
-  return new Intl.DateTimeFormat("en-CH", { month: "short" }).format(date);
+  return new Intl.DateTimeFormat("en-CH", { month: "short", timeZone: "UTC" }).format(date);
 }
 
 export function buildFeeSummary(transactions: AccountingTransaction[], now = new Date()): FeeSummary {

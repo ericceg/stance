@@ -113,9 +113,9 @@ export function calculateCashChf(transactions: AccountingTransaction[]): number 
   return transactions.reduce((cash, transaction) => {
     switch (transaction.type) {
       case "DEPOSIT":
-        return cash + transaction.totalValueChf;
+        return cash + transaction.totalValueChf - transaction.feeChf;
       case "WITHDRAWAL":
-        return cash - transaction.totalValueChf;
+        return cash - transaction.totalValueChf - transaction.feeChf;
       case "BUY":
         return cash - transaction.totalValueChf - transaction.feeChf;
       case "SELL":
@@ -231,7 +231,11 @@ export function calculatePortfolio(input: {
     (total, transaction) => total + (transaction.type === "DIVIDEND" && transaction.securityId === null ? transaction.totalValueChf - transaction.feeChf : 0),
     0,
   );
-  const realizedPnlChf = positions.reduce((total, position) => total + position.realizedPnlChf, 0) + portfolioLevelIncomeChf - portfolioLevelFeesChf;
+  const cashMovementFeesChf = validTransactions.reduce(
+    (total, transaction) => total + (["DEPOSIT", "WITHDRAWAL"].includes(transaction.type) ? transaction.feeChf : 0),
+    0,
+  );
+  const realizedPnlChf = positions.reduce((total, position) => total + position.realizedPnlChf, 0) + portfolioLevelIncomeChf - portfolioLevelFeesChf - cashMovementFeesChf;
   const totalPnlChf = portfolioValueChf - netContributionsChf;
   const todayPnlChf = positions.reduce((total, position) => total + (position.todayPnlChf ?? 0), 0);
   const priorValue = portfolioValueChf - todayPnlChf;

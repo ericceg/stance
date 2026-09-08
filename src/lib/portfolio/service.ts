@@ -213,8 +213,11 @@ export async function getDashboardData() {
     }
   }
 
+  const excludedTransactionIds = new Set(data.summary.issues
+    .filter((issue) => issue.severity === "error" && issue.transactionId)
+    .map((issue) => issue.transactionId));
   for (const account of data.brokerAccounts) {
-    const accountTransactions = data.accountingTransactions.filter((transaction) => transaction.brokerAccountId === account.id);
+    const accountTransactions = data.accountingTransactions.filter((transaction) => transaction.brokerAccountId === account.id && !excludedTransactionIds.has(transaction.id));
     const accountCash = calculateCashChf(accountTransactions);
     brokerAllocation.set(account.brokerName, (brokerAllocation.get(account.brokerName) ?? 0) + accountCash);
     accountCashByAccount.push({ brokerName: account.brokerName, accountName: account.accountName, valueChf: accountCash });
