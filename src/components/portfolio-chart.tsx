@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Activity, ChartNoAxesCombined, Minus, Plus, RotateCcw } from "lucide-react";
-import { AreaSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
+import { AreaSeries, ColorType, CrosshairMode, LineSeries, LineStyle, PriceScaleMode, createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
 import { formatChf } from "@/lib/format";
 import { readIncludeClosedChartPositions, subscribeToChartPreferences } from "@/lib/preferences";
 import { aggregateChartSeries, chartRanges as ranges, chartResolutions as resolutions, prepareChartData, indexChartPoints, rebaseChartSeries, type ChartRange as Range, type ChartResolution as Resolution, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
@@ -12,6 +12,7 @@ import { aggregateChartSeries, chartRanges as ranges, chartResolutions as resolu
 type Metric = "pnl" | "value";
 type ComparisonMode = "individual" | "aggregate";
 type BaselineMode = "level" | "change";
+type ScaleMode = "linear" | "log";
 interface SecurityChartSeries {
   securityId: string;
   ticker: string;
@@ -69,7 +70,7 @@ function tradeMarkers(data: ChartPoint[], transactions: ChartTransaction[], dail
   }).sort((left, right) => Number(left.time) - Number(right.time));
 }
 
-function TradingPlot({ data, daily, metric, baselineMode, area, overlays, showPortfolio, showTrades, transactions }: { data: ChartPoint[]; daily: boolean; metric: Metric; baselineMode: BaselineMode; area: boolean; overlays: OverlaySeries[]; showPortfolio: boolean; showTrades: boolean; transactions: ChartTransaction[] }) {
+function TradingPlot({ data, daily, metric, baselineMode, scaleMode, area, overlays, showPortfolio, showTrades, transactions }: { data: ChartPoint[]; daily: boolean; metric: Metric; baselineMode: BaselineMode; scaleMode: ScaleMode; area: boolean; overlays: OverlaySeries[]; showPortfolio: boolean; showTrades: boolean; transactions: ChartTransaction[] }) {
   const container = useRef<HTMLDivElement>(null);
   const readout = useRef<HTMLOutputElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -89,7 +90,7 @@ function TradingPlot({ data, daily, metric, baselineMode, area, overlays, showPo
         vertLine: { color: color("--muted"), width: 1, style: LineStyle.Dashed, labelBackgroundColor: color("--ink-soft") },
         horzLine: { color: color("--muted"), width: 1, style: LineStyle.Dashed, labelBackgroundColor: color("--ink-soft") },
       },
-      rightPriceScale: { borderColor: color("--line"), minimumWidth: 84, scaleMargins: { top: 0.16, bottom: 0.12 } },
+      rightPriceScale: { borderColor: color("--line"), minimumWidth: 84, mode: scaleMode === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal, scaleMargins: { top: 0.16, bottom: 0.12 } },
       timeScale: { borderColor: color("--line"), timeVisible: !daily, secondsVisible: false, rightOffset: 2, minBarSpacing: 0.01 },
       localization: {
         locale: "en-CH",
@@ -160,11 +161,11 @@ function TradingPlot({ data, daily, metric, baselineMode, area, overlays, showPo
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [data, daily, metric, baselineMode, overlays, showPortfolio, showTrades, transactions]);
+  }, [data, daily, metric, baselineMode, scaleMode, overlays, showPortfolio, showTrades, transactions]);
 
   useEffect(() => {
     seriesRef.current?.applyOptions({ topColor: area ? "rgba(63, 155, 106, 0.16)" : "transparent", bottomColor: "rgba(63, 155, 106, 0)" });
-  }, [area, data, daily, metric, baselineMode, overlays, showPortfolio, showTrades, transactions]);
+  }, [area, data, daily, metric, baselineMode, scaleMode, overlays, showPortfolio, showTrades, transactions]);
 
   const zoom = (factor: number) => {
     const scale = chartRef.current?.timeScale();
@@ -176,8 +177,8 @@ function TradingPlot({ data, daily, metric, baselineMode, area, overlays, showPo
   };
 
   return <div className="trading-plot">
-    <div className="trading-readout">{showPortfolio ? <span>{metric === "pnl" ? "Portfolio P&L" : "Portfolio value"}{baselineMode === "change" ? " change" : ""} · CHF</span> : null}{overlays.map((overlay) => <span className="overlay-key" key={overlay.id}><i style={{ backgroundColor: overlay.color }} />{overlay.label}</span>)}<output ref={readout} aria-live="off" /></div>
-    <div ref={container} className="trading-canvas" role="img" aria-label={`${daily ? "Daily" : "Intraday"} ${metric === "pnl" ? "profit and loss" : "value"} ${baselineMode === "change" ? "change chart rebased to zero" : "chart"} for ${showPortfolio ? "the portfolio" : "selected holdings"}. Drag to pan, scroll to zoom. Values are shown above the chart.`} />
+    <div className="trading-readout">{showPortfolio ? <span>{metric === "pnl" ? "Portfolio P&L" : "Portfolio value"}{baselineMode === "change" ? " change" : ""} · CHF{scaleMode === "log" ? " · Log scale" : ""}</span> : null}{overlays.map((overlay) => <span className="overlay-key" key={overlay.id}><i style={{ backgroundColor: overlay.color }} />{overlay.label}</span>)}<output ref={readout} aria-live="off" /></div>
+    <div ref={container} className="trading-canvas" role="img" aria-label={`${daily ? "Daily" : "Intraday"} ${metric === "pnl" ? "profit and loss" : "value"} ${baselineMode === "change" ? "change chart rebased to zero" : "chart"} on a ${scaleMode === "log" ? "logarithmic" : "linear"} scale for ${showPortfolio ? "the portfolio" : "selected holdings"}. Drag to pan, scroll to zoom. Values are shown above the chart.`} />
     <div className="trading-navigation" aria-label="Chart navigation">
       <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => zoom(1.5)}><Minus /></button>
       <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => zoom(0.65)}><Plus /></button>
@@ -196,6 +197,7 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
   const [selectedSecurityIds, setSelectedSecurityIds] = useState<string[]>([]);
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("individual");
   const [baselineMode, setBaselineMode] = useState<BaselineMode>("level");
+  const [scaleMode, setScaleMode] = useState<ScaleMode>("linear");
   const includeClosedPositions = useSyncExternalStore(
     subscribeToChartPreferences,
     readIncludeClosedChartPositions,
@@ -273,17 +275,21 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
         <button type="button" aria-pressed={baselineMode === "level"} onClick={() => setBaselineMode("level")}>Level</button>
         <button type="button" aria-pressed={baselineMode === "change"} title="Start every line at CHF 0 for the selected period" onClick={() => setBaselineMode("change")}>Change</button>
       </div>
+      <div className="scale-mode" aria-label="Chart scale">
+        <button type="button" aria-pressed={scaleMode === "linear"} onClick={() => setScaleMode("linear")}>Linear</button>
+        <button type="button" aria-pressed={scaleMode === "log"} title="Compress large magnitudes while retaining zero and negative values" onClick={() => setScaleMode("log")}>Log</button>
+      </div>
       <button className="trade-toggle" type="button" aria-pressed={showTrades} onClick={() => setShowTrades((current) => !current)}>Buy/Sell</button>
     </div> : null}
     <div className="trading-summary">
       <div className="terminal-value-row"><strong>{formatChf(chartValue, { signed: metric === "pnl" })}</strong><span className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}<small>{range}</small></span></div>
       <div className="trading-extremes"><span>{daily ? `${resolutionLabel} high` : "High"} <strong>{formatChf(high)}</strong></span><span>{daily ? `${resolutionLabel} low` : "Low"} <strong>{formatChf(low)}</strong></span></div>
     </div>
-    {hasVisibleTrend ? <TradingPlot data={plottedData} daily={daily} metric={metric} baselineMode={baselineMode} area={area} overlays={plottedOverlays} showPortfolio={showPortfolio} showTrades={showTrades} transactions={chartTransactions} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{!showPortfolio && visibleSelectedSecurityIds.length === 0 ? "No chart series selected" : !showPortfolio ? "Holding history unavailable" : hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{!showPortfolio ? "Enable Portfolio or select holdings with available history." : hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
+    {hasVisibleTrend ? <TradingPlot data={plottedData} daily={daily} metric={metric} baselineMode={baselineMode} scaleMode={scaleMode} area={area} overlays={plottedOverlays} showPortfolio={showPortfolio} showTrades={showTrades} transactions={chartTransactions} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{!showPortfolio && visibleSelectedSecurityIds.length === 0 ? "No chart series selected" : !showPortfolio ? "Holding history unavailable" : hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{!showPortfolio ? "Enable Portfolio or select holdings with available history." : hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
     <div className="trading-bottom-bar">
       <div className="range-tabs" aria-label="Chart time range">{ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} aria-pressed={item === range} onClick={() => setRange(item)} type="button">{item}</button>)}</div>
       <span>{resolutionLabel} intervals · UTC<span className="trading-gesture-hint"> · Drag to pan · Scroll to zoom</span></span>
     </div>
-    <footer className="trading-note"><span>{baselineMode === "change" ? "Each line starts at CHF 0 at its first valuation in this range" : selectedResolution === "intraday" ? "Intraday detail available for the latest 7 days" : `Last available valuation each ${selectedResolution}`}</span>{showTrades ? <span className="trade-key"><i className="buy-marker" /> Buy <i className="sell-marker" /> Sell</span> : null}{hasMissingSelectedHistory ? <span>Some holding history needs a history rebuild</span> : null}{liveEstimate !== null ? <span>Live estimate <strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong> · excluded from chart</span> : null}</footer>
+    <footer className="trading-note"><span>{baselineMode === "change" ? "Each line starts at CHF 0 at its first valuation in this range" : selectedResolution === "intraday" ? "Intraday detail available for the latest 7 days" : `Last available valuation each ${selectedResolution}`}{scaleMode === "log" ? " · Symmetric log scale compresses large moves while retaining zero and losses" : ""}</span>{showTrades ? <span className="trade-key"><i className="buy-marker" /> Buy <i className="sell-marker" /> Sell</span> : null}{hasMissingSelectedHistory ? <span>Some holding history needs a history rebuild</span> : null}{liveEstimate !== null ? <span>Live estimate <strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong> · excluded from chart</span> : null}</footer>
   </section>;
 }

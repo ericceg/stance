@@ -435,14 +435,14 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .interval-tabs button[aria-pressed="true"] { background: var(--accent-soft); color: var(--green); }
 .comparison-toolbar { display: flex; align-items: center; gap: 10px; padding: 7px 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; }
 .holding-tabs { display: flex; align-items: center; gap: 3px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.portfolio-toggle, .holding-tabs button, .comparison-mode button, .comparison-basis button, .trade-toggle { flex: 0 0 auto; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font-size: 9px; }
-.portfolio-toggle[aria-pressed="true"], .holding-tabs button[aria-pressed="true"], .comparison-mode button[aria-pressed="true"], .comparison-basis button[aria-pressed="true"], .trade-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--chart) 45%, var(--line)); background: var(--accent-soft); color: var(--green); }
+.portfolio-toggle, .holding-tabs button, .comparison-mode button, .comparison-basis button, .scale-mode button, .trade-toggle { flex: 0 0 auto; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font-size: 9px; }
+.portfolio-toggle[aria-pressed="true"], .holding-tabs button[aria-pressed="true"], .comparison-mode button[aria-pressed="true"], .comparison-basis button[aria-pressed="true"], .scale-mode button[aria-pressed="true"], .trade-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--chart) 45%, var(--line)); background: var(--accent-soft); color: var(--green); }
 .trade-toggle { margin-left: 2px; }
 .holding-tabs button { display: inline-flex; align-items: center; gap: 5px; }
 .holding-tabs button.is-closed { border-style: dashed; }
 .holding-tabs button small { color: inherit; font-size: 7px; letter-spacing: .06em; text-transform: uppercase; opacity: .72; }
 .comparison-mode { display: flex; gap: 3px; margin-left: auto; padding-left: 10px; border-left: 1px solid var(--line); }
-.comparison-basis { display: flex; gap: 3px; padding-left: 10px; border-left: 1px solid var(--line); }
+.comparison-basis, .scale-mode { display: flex; gap: 3px; padding-left: 10px; border-left: 1px solid var(--line); }
 .trading-summary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 20px; padding: 13px 18px 8px; }
 .trading-summary .terminal-value-row { margin: 0; }
 .trading-summary .terminal-value-row > strong { font-size: 24px; }
@@ -460,7 +460,7 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .trading-plot:hover .trading-navigation, .trading-plot:focus-within .trading-navigation { opacity: 1; }
 .trading-navigation button { display: grid; place-items: center; width: 28px; height: 26px; border: 0; border-radius: 3px; background: transparent; color: var(--ink-soft); }
 .trading-navigation svg { width: 14px; height: 14px; }
-.trading-navigation button:hover, .trading-style button:hover, .interval-tabs button:hover, .portfolio-toggle:hover, .holding-tabs button:hover, .comparison-mode button:hover, .comparison-basis button:hover, .trade-toggle:hover { background: var(--surface-soft); }
+.trading-navigation button:hover, .trading-style button:hover, .interval-tabs button:hover, .portfolio-toggle:hover, .holding-tabs button:hover, .comparison-mode button:hover, .comparison-basis button:hover, .scale-mode button:hover, .trade-toggle:hover { background: var(--surface-soft); }
 .trading-panel button:focus-visible { outline: 2px solid var(--chart); outline-offset: 2px; }
 .trading-bottom-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; border-top: 1px solid var(--line); }
 .trading-bottom-bar .range-tabs { background: transparent; padding: 0; }
