@@ -185,8 +185,8 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
       <section className="breakdown-hero">
         <div>
           <p>Portfolio intelligence</p>
-          <h2>See what you own, where it sits, and what drives the result.</h2>
-          <span>Every view uses current CHF values and your stored average-cost accounting.</span>
+          <h2>Understand your portfolio.</h2>
+          <span>Explore your allocation, concentration, and sources of return.</span>
         </div>
         <div className="breakdown-hero-value"><span>Portfolio value</span><strong>{formatChf(summary.portfolioValueChf)}</strong><small>{positions.length} open securities · {currencies.length} trading currencies</small></div>
       </section>
@@ -201,7 +201,7 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
 
       <section className="panel breakdown-explorer">
         <div className="breakdown-explorer-head">
-          <div className="section-heading"><div><p>Allocation explorer</p><h2>Slice the portfolio your way</h2></div></div>
+          <div className="section-heading"><div><p>Allocation explorer</p><h2>Allocation explorer</h2></div></div>
           <div className="breakdown-controls">
             <div className="breakdown-segment" role="tablist" aria-label="Breakdown dimension">
               {(["holding", "stock", "etf", "asset", "region", "currency", "broker"] as const).map((item) => <button aria-selected={dimension === item} className={dimension === item ? "is-active" : ""} key={item} onClick={() => setDimension(item)} role="tab" type="button">{dimensionLabel(item)}</button>)}

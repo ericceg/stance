@@ -36,7 +36,7 @@ export default async function FeesPage() {
     .map(([label, values]) => ({ label, ...values }))
     .sort((left, right) => right.amountChf - left.amountChf);
   const maxMonthlyFee = Math.max(...summary.months.map((month) => month.amountChf), 1);
-  const todayLabel = new Intl.DateTimeFormat("en-CH", { weekday: "long", day: "2-digit", month: "long" }).format(new Date()).toUpperCase();
+  const todayLabel = new Intl.DateTimeFormat("en-CH", { weekday: "long", day: "2-digit", month: "long" }).format(new Date());
 
   return (
     <AppShell active="Fees" eyebrow={todayLabel} issueCount={data.summary.issues.length} title="Fees & costs">

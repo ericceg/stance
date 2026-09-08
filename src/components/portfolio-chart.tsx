@@ -158,6 +158,9 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
           <button aria-pressed={metric === "value"} className={metric === "value" ? "is-active" : ""} onClick={() => setMetric("value")} type="button">Value</button>
           <button aria-pressed={metric === "drawdown"} className={metric === "drawdown" ? "is-active" : ""} onClick={() => { setMetric("drawdown"); setBaselineMode("level"); setScaleMode("linear"); }} type="button">Drawdown</button>
         </div>
+      </div>
+    </header>
+    <details className="disclosure chart-options"><summary>Chart options <span>Compare holdings, intervals &amp; display</span></summary><div className="chart-options-body">
         <div className="trading-style" aria-label="Chart style">
           <button type="button" aria-pressed={!area} onClick={() => setArea(false)}>Line</button>
           <button type="button" aria-pressed={area} onClick={() => setArea(true)}>Area</button>
@@ -166,7 +169,6 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
           {resolutions.map((item) => <button key={item} type="button" aria-pressed={resolution === item} onClick={() => setResolution(item)}>{item === "minute" ? "Min" : item[0].toUpperCase() + item.slice(1)}</button>)}
         </div>
       </div>
-    </header>
     {availableSecuritySeries.length > 0 ? <div className="comparison-toolbar">
       <button className="portfolio-toggle" type="button" aria-pressed={showPortfolio} onClick={() => setShowPortfolio((current) => !current)}>Portfolio</button>
       <span>Holdings</span>
@@ -188,7 +190,7 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
         <button type="button" disabled={metric === "drawdown"} aria-pressed={scaleMode === "log"} title="Compress large magnitudes while retaining zero and negative values" onClick={() => setScaleMode("log")}>Log</button>
       </div>
       <button className="trade-toggle" type="button" aria-pressed={showTrades} onClick={() => setShowTrades((current) => !current)}>Buy/Sell</button>
-    </div> : null}
+    </div> : null}</details>
     <div className="trading-summary">
       <div className="terminal-value-row"><strong>{metric === "drawdown" ? formatPercent(chartValue) : formatChf(chartValue, { signed: metric === "pnl" })}</strong><span className={metric === "drawdown" ? "negative" : change >= 0 ? "positive" : "negative"}>{metric === "drawdown" ? "From peak" : formatChf(change, { signed: true })}<small>{range}</small></span></div>
       <div className="trading-extremes">{metric === "drawdown" ? <><span>Peak <strong>{formatPercent(high)}</strong></span><span>Max drawdown <strong>{formatPercent(low)}</strong></span></> : <><span>{daily ? `${resolutionLabel} high` : "High"} <strong>{formatChf(high)}</strong></span><span>{daily ? `${resolutionLabel} low` : "Low"} <strong>{formatChf(low)}</strong></span></>}</div>

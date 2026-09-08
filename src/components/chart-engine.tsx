@@ -48,7 +48,7 @@ export function TimeSeriesChart({ series, daily, scaleMode = "linear", showZeroL
     const chart = createChart(host, {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: color("--surface-strong") }, textColor: color("--muted"), fontSize: 11, attributionLogo: true },
-      grid: { vertLines: { color: color("--line") }, horzLines: { color: color("--line") } },
+      grid: { vertLines: { visible: false }, horzLines: { color: color("--line") } },
       crosshair: {
         mode: CrosshairMode.Magnet,
         vertLine: { color: color("--muted"), width: 1, style: LineStyle.Dashed, labelBackgroundColor: color("--ink-soft") },
@@ -98,7 +98,7 @@ export function TimeSeriesChart({ series, daily, scaleMode = "linear", showZeroL
     showPoint(primary?.data.at(-1));
     chart.subscribeCrosshairMove((event) => showPoint(event.time === undefined ? primary?.data.at(-1) : primaryPoints.get(Number(event.time)) ?? primary?.data.at(-1)));
     const theme = window.matchMedia("(prefers-color-scheme: dark)");
-    const updateTheme = () => chart.applyOptions({ layout: { background: { type: ColorType.Solid, color: color("--surface-strong") }, textColor: color("--muted") }, grid: { vertLines: { color: color("--line") }, horzLines: { color: color("--line") } } });
+    const updateTheme = () => chart.applyOptions({ layout: { background: { type: ColorType.Solid, color: color("--surface-strong") }, textColor: color("--muted") }, grid: { vertLines: { visible: false }, horzLines: { color: color("--line") } } });
     theme.addEventListener("change", updateTheme);
     return () => {
       theme.removeEventListener("change", updateTheme);

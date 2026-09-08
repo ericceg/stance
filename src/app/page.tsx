@@ -23,14 +23,14 @@ export default async function Home() {
       ? { hour: "2-digit", minute: "2-digit" }
       : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(updatedAt)
     : "Unavailable";
-  const todayLabel = new Intl.DateTimeFormat("en-CH", { weekday: "long", day: "2-digit", month: "long" }).format(new Date()).toUpperCase();
+  const todayLabel = new Intl.DateTimeFormat("en-CH", { weekday: "long", day: "2-digit", month: "long" }).format(new Date());
 
   return (
     <AppShell active="Overview" eyebrow={todayLabel} issueCount={data.issues.length} title="Portfolio overview">
       {data.issues.length > 0 ? (
         <Link className="issue-banner" href="/data-issues"><TriangleAlert aria-hidden="true" /><span><strong>{data.issues.length} data {data.issues.length === 1 ? "issue needs" : "issues need"} attention</strong><small>Review missing prices, FX rates, or identifiers before relying on totals.</small></span><ArrowUpRight aria-hidden="true" /></Link>
       ) : (
-        <div className="quality-banner"><CircleCheck aria-hidden="true" /><span>All positions have a current price, CHF rate, and canonical identifier.</span></div>
+        <div className="quality-banner"><CircleCheck aria-hidden="true" /><span>Portfolio data is complete</span></div>
       )}
 
       <section className="overview-grid">
@@ -43,19 +43,19 @@ export default async function Home() {
             <div><span>Today</span><strong className={toneForValue(data.summary.todayPnlChf)}>{formatChf(data.summary.todayPnlChf, { signed: true })}</strong><small className={toneForValue(data.summary.todayReturnPercent)}>{formatPercent(data.summary.todayReturnPercent, { signed: true })}</small></div>
             <div><span>Total P&amp;L</span><strong className={toneForValue(data.summary.totalPnlChf)}>{formatChf(data.summary.totalPnlChf, { signed: true })}</strong><small className={toneForValue(data.summary.totalReturnPercent)}>{formatPercent(data.summary.totalReturnPercent, { signed: true })}</small></div>
             <div><span>Invested</span><strong>{formatChf(data.summary.investedCapitalChf)}</strong><small>Remaining cost basis</small></div>
-            <div><span>Cash</span><strong>{formatChf(data.summary.cashChf)}</strong><small>{formatPercent((data.summary.cashChf / data.summary.portfolioValueChf) * 100)} of portfolio</small></div>
+            <div><span>Cash</span><strong>{formatChf(data.summary.cashChf)}</strong><small>{formatPercent(data.summary.portfolioValueChf === 0 ? 0 : (data.summary.cashChf / data.summary.portfolioValueChf) * 100)} of portfolio</small></div>
           </div>
         </div>
         <AllocationChart allocation={data.allocation} total={data.summary.portfolioValueChf} />
       </section>
 
-      <section className="secondary-metrics" aria-label="Portfolio accounting summary">
+      <details className="disclosure accounting-disclosure"><summary>Accounting details <span>Cost basis, contributions &amp; realized returns</span></summary><section className="secondary-metrics" aria-label="Portfolio accounting summary">
         <div><span>Market value</span><strong>{formatChf(data.summary.marketValueChf)}</strong></div>
         <div><span>Net contributions</span><strong>{formatChf(data.summary.netContributionsChf)}</strong></div>
         <div><span>Unrealized P&amp;L</span><strong className={toneForValue(data.summary.unrealizedPnlChf)}>{formatChf(data.summary.unrealizedPnlChf, { signed: true })}</strong></div>
         <div><span>Realized P&amp;L</span><strong className={toneForValue(data.summary.realizedPnlChf)}>{formatChf(data.summary.realizedPnlChf, { signed: true })}</strong></div>
         <div className="method-note"><Clock3 aria-hidden="true" /><span><strong>Average-cost accounting</strong><small>Fees included · CHF conversion stored per transaction</small></span></div>
-      </section>
+      </section></details>
 
       <PortfolioChart chartTransactions={data.chartTransactions} hasTransactions={data.hasTransactions} recordedSnapshotCount={data.recordedSnapshotCount} snapshots={data.snapshots} securitySeries={data.securitySeries} />
       <HoldingsTable positions={data.positions} />

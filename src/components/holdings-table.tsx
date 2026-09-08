@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
 import type { DashboardData } from "@/lib/portfolio/service";
 import { formatChf, formatCurrency, formatNumber, formatPercent, toneForValue } from "@/lib/format";
 
@@ -38,15 +38,17 @@ function PnlValue({ value, percent = false }: { value: number | null; percent?: 
 }
 
 export function HoldingsTable({ positions }: { positions: Position[] }) {
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; direction: "asc" | "desc" }>({ key: "marketValue", direction: "desc" });
-  const sortedPositions = useMemo(() => [...positions].sort((left, right) => {
+  const sortedPositions = useMemo(() => positions.filter((position) => `${position.security.name} ${position.security.ticker} ${position.brokerLabel}`.toLowerCase().includes(query.toLowerCase())).sort((left, right) => {
     const leftValue = sortValue(left, sort.key);
     const rightValue = sortValue(right, sort.key);
     const comparison = typeof leftValue === "string" && typeof rightValue === "string"
       ? leftValue.localeCompare(rightValue)
       : Number(leftValue) - Number(rightValue);
     return sort.direction === "asc" ? comparison : -comparison;
-  }), [positions, sort]);
+  }), [positions, sort, query]);
 
   function changeSort(key: SortKey) {
     setSort((current) => current.key === key
@@ -69,8 +71,9 @@ export function HoldingsTable({ positions }: { positions: Position[] }) {
   ];
 
   return (
-    <section className="panel holdings-panel" id="holdings">
+    <section className={`panel holdings-panel ${expanded ? "is-expanded" : "is-compact"}`} id="holdings">
       <div className="section-heading table-heading"><div><p>Holdings</p><h2>Current positions</h2></div><span>{positions.length} securities</span></div>
+      <div className="table-toolbar"><label className="search-field"><Search aria-hidden="true" /><input aria-label="Search holdings" placeholder="Search holdings…" value={query} onChange={(event) => setQuery(event.target.value)} /></label><button className="secondary-button" type="button" aria-pressed={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? "Fewer columns" : "All columns"}</button></div>
       <div className="table-scroll">
         <table className="data-table holdings-table">
           <thead><tr>{headers.map((header) => <th aria-sort={sort.key === header.key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"} className={header.align === "right" ? "numeric" : ""} key={header.key}><button onClick={() => changeSort(header.key)} type="button">{header.label}<SortIcon active={sort.key === header.key} direction={sort.direction} /></button></th>)}</tr></thead>
@@ -90,6 +93,7 @@ export function HoldingsTable({ positions }: { positions: Position[] }) {
                 <td className="numeric mono">{position.portfolioWeight === null ? "—" : formatPercent(position.portfolioWeight)}</td>
               </tr>
             ))}
+            {sortedPositions.length === 0 ? <tr><td colSpan={headers.length}><div className="empty-state"><Search aria-hidden="true" /><h2>{positions.length ? "No matching holdings" : "Your investments will appear here"}</h2><p>{positions.length ? "Try another name, ticker, or broker." : "Add a transaction or import a broker statement to get started."}</p>{!positions.length ? <Link className="primary-button" href="/import">Import investments</Link> : null}</div></td></tr> : null}
           </tbody>
         </table>
       </div>

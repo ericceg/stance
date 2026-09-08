@@ -22,7 +22,7 @@ export default async function ImportPage() {
     <AppShell active="Import" eyebrow="Broker connections" issueCount={dashboard.issues.length} title="Import & sync">
       <div className="import-intro">
         <div><p>Bring your portfolio together</p><h2>Connect Trading 212 or upload DEGIRO statements</h2></div>
-        <span>Every imported record retains its broker ID or a stable fingerprint, so rerunning the same source does not duplicate your ledger.</span>
+        <span>Keep your accounts up to date in one place. Duplicate transactions are automatically skipped.</span>
       </div>
       <ImportHub
         accounts={accounts.map((account) => ({ id: account.id, accountName: account.accountName, baseCurrency: account.baseCurrency }))}

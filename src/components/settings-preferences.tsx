@@ -23,6 +23,7 @@ export function SettingsPreferences() {
         </div>
         <label className="preference-switch">
           <input
+            aria-label="Include closed positions in chart breakdown"
             checked={includeClosedPositions}
             className="visually-hidden"
             onChange={(event) => updateIncludeClosedPositions(event.target.checked)}

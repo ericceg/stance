@@ -12,13 +12,12 @@ export default async function BreakdownPage() {
     weekday: "long",
     day: "2-digit",
     month: "long",
-  }).format(new Date()).toUpperCase();
+  }).format(new Date());
 
   return (
     <AppShell active="Breakdown" eyebrow={todayLabel} issueCount={data.issues.length} title="Portfolio breakdown">
       <PortfolioBreakdown accountCash={data.accountCash} positions={data.positions} summary={data.summary} />
-      <EtfConstituentManager positions={data.positions} />
-      <RegionalExposureManager positions={data.positions} />
+      <details className="disclosure"><summary>Manage exposure data <span>ETF constituents &amp; regional weights</span></summary><div className="disclosure-content"><EtfConstituentManager positions={data.positions} /><RegionalExposureManager positions={data.positions} /></div></details>
     </AppShell>
   );
 }
