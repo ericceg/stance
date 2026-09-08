@@ -20,7 +20,7 @@ import { formatChf, formatPercent, toneForValue } from "@/lib/format";
 type Position = DashboardData["positions"][number];
 type Summary = DashboardData["summary"];
 type AccountCash = DashboardData["accountCash"];
-type Dimension = "holding" | "asset" | "region" | "currency" | "broker";
+type Dimension = "holding" | "stock" | "etf" | "asset" | "region" | "currency" | "broker";
 type Metric = "value" | "cost" | "pnl" | "today" | "income" | "fees";
 type SortKey = "name" | "value" | "cost" | "pnl" | "return" | "today" | "income" | "fees" | "weight";
 
@@ -60,6 +60,8 @@ function allocationRows(positions: Position[], accountCash: AccountCash, dimensi
   for (const position of positions) {
     const value = metricValue(position, metric);
     if (dimension === "holding") grouped.set(position.security.name, value);
+    if (dimension === "stock" && position.security.assetType === "STOCK") grouped.set(position.security.name, value);
+    if (dimension === "etf" && position.security.assetType === "ETF") grouped.set(position.security.name, value);
     if (dimension === "asset") {
       const label = position.security.assetType === "ETF" ? "ETFs" : position.security.assetType === "STOCK" ? "Stocks" : "Other";
       grouped.set(label, (grouped.get(label) ?? 0) + value);
@@ -88,6 +90,19 @@ function allocationRows(positions: Position[], accountCash: AccountCash, dimensi
     .map(([name, value]) => ({ name, value }))
     .filter((item) => Math.abs(item.value) > 0.005)
     .sort((left, right) => Math.abs(right.value) - Math.abs(left.value));
+}
+
+function dimensionLabel(dimension: Dimension) {
+  const labels: Record<Dimension, string> = {
+    holding: "Holdings",
+    stock: "Stocks",
+    etf: "ETFs",
+    asset: "Asset type",
+    region: "Region",
+    currency: "Currency",
+    broker: "Broker",
+  };
+  return labels[dimension];
 }
 
 function DetailValue({ value, percent = false }: { value: number | null; percent?: boolean }) {
@@ -176,7 +191,7 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
           <div className="section-heading"><div><p>Allocation explorer</p><h2>Slice the portfolio your way</h2></div></div>
           <div className="breakdown-controls">
             <div className="breakdown-segment" role="tablist" aria-label="Breakdown dimension">
-              {(["holding", "asset", "region", "currency", "broker"] as const).map((item) => <button aria-selected={dimension === item} className={dimension === item ? "is-active" : ""} key={item} onClick={() => setDimension(item)} role="tab" type="button">{item === "asset" ? "Asset type" : item[0].toUpperCase() + item.slice(1)}</button>)}
+              {(["holding", "stock", "etf", "asset", "region", "currency", "broker"] as const).map((item) => <button aria-selected={dimension === item} className={dimension === item ? "is-active" : ""} key={item} onClick={() => setDimension(item)} role="tab" type="button">{dimensionLabel(item)}</button>)}
             </div>
             <label className="breakdown-select"><span>Measure</span><select aria-label="Breakdown measure" onChange={(event) => setMetric(event.target.value as Metric)} value={metric}>{(Object.keys(metricLabels) as Metric[]).map((item) => <option key={item} value={item}>{metricLabels[item]}</option>)}</select></label>
           </div>
@@ -184,12 +199,12 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
         <div className="breakdown-explorer-body">
           <div className="breakdown-donut">
             <ResponsiveContainer height="100%" width="100%"><PieChart><Pie data={rows.map((row) => ({ ...row, chartValue: Math.abs(row.value) }))} dataKey="chartValue" nameKey="name" innerRadius="64%" outerRadius="88%" paddingAngle={2} stroke="none">{rows.map((row, index) => <Cell fill={colors[index % colors.length]} key={row.name} />)}</Pie><Tooltip formatter={(_value, _name, item) => formatChf(item.payload.value, { signed: metric === "pnl" || metric === "today" })} contentStyle={{ background: "var(--surface-strong)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "var(--shadow)", fontSize: 10 }} /></PieChart></ResponsiveContainer>
-            <div><strong>{rows.length}</strong><span>{dimension === "holding" ? "positions" : "groups"}</span></div>
+            <div><strong>{rows.length}</strong><span>{dimension === "holding" || dimension === "stock" || dimension === "etf" ? "positions" : "groups"}</span></div>
           </div>
           <div className="breakdown-ranking">
-            <div className="breakdown-ranking-head"><span>{metricLabels[metric]} by {dimension}</span><strong>{formatChf(rows.reduce((total, row) => total + row.value, 0), { signed: metric === "pnl" || metric === "today" })}</strong></div>
+            <div className="breakdown-ranking-head"><span>{metricLabels[metric]} by {dimensionLabel(dimension)}</span><strong>{formatChf(rows.reduce((total, row) => total + row.value, 0), { signed: metric === "pnl" || metric === "today" })}</strong></div>
             {rows.map((row, index) => <div className="breakdown-rank" key={row.name}><div><i style={{ background: colors[index % colors.length] }} /><span>{row.name}</span><strong className={metric === "pnl" || metric === "today" ? toneForValue(row.value) : ""}>{formatChf(row.value, { signed: metric === "pnl" || metric === "today" })}</strong></div><div className="breakdown-bar"><i style={{ background: colors[index % colors.length], width: `${magnitudeTotal === 0 ? 0 : (Math.abs(row.value) / magnitudeTotal) * 100}%` }} /></div><small>{formatPercent(magnitudeTotal === 0 ? 0 : (Math.abs(row.value) / magnitudeTotal) * 100)} of {metric === "pnl" || metric === "today" ? "absolute result" : "total"}</small></div>)}
-            {rows.length === 0 ? <p className="breakdown-empty">No non-zero values for this measure yet.</p> : null}
+            {rows.length === 0 ? <p className="breakdown-empty">{dimension === "stock" ? "No direct stock positions for this measure yet." : dimension === "etf" ? "No ETF positions for this measure yet." : "No non-zero values for this measure yet."}</p> : null}
           </div>
         </div>
       </section>
