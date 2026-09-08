@@ -12,6 +12,7 @@ PersPort is a lightweight, single-user investment portfolio tracker with CHF as 
 - Automatic current and historical CHF conversion through Frankfurter, with no FX-rate entry
 - Aggregated holdings with broker-level breakdowns
 - Sortable holdings table, allocation views, seeded snapshot chart, and responsive dark-mode UI
+- Regional allocation with ETF look-through, automatic issuer refresh, visible unclassified exposure, and manual overrides
 - Position detail pages with identification, pricing, broker allocation, and transaction history
 - Manual transaction creation and deletion with server-side validation
 - Data-quality checks for missing prices, FX rates, ISINs, invalid transactions, and oversold positions
@@ -52,6 +53,7 @@ The complete schema is in [`prisma/schema.prisma`](./prisma/schema.prisma).
 | `BrokerAccount` | Broker/account identity and base currency |
 | `Transaction` | Immutable accounting inputs with local and CHF values, import source, and duplicate-detection fields |
 | `PriceQuote` | Last known mock/current price, previous close, CHF rate, provider, and timestamp |
+| `SecurityRegionalExposure` | Dated regional weights per security, including their automatic or manual source |
 | `PortfolioSnapshot` | Periodic CHF portfolio value, cost, cash, and P&L totals |
 
 Transactions have indexes for account/security timelines. Imported records can be deduplicated by broker/source external ID or by an importer-generated fingerprint.
@@ -118,6 +120,8 @@ Export either report from DEGIRO’s Inbox in CSV format:
 - **Account statement** for deposits, withdrawals, dividends, interest, withholding tax, and other fees
 
 Open **Import**, choose the DEGIRO account and CSV, review the local preview, then import. Trade-settlement cash rows in Account statements are ignored to avoid double-counting trades. Transaction statements that contain CHF values keep their row-specific broker conversion; all missing conversions are retrieved automatically for each transaction date. Open positions are matched to Yahoo Finance by ISIN and receive current prices in the quote currency with automatic CHF conversion. The uploaded file is never saved, and stable fingerprints make overlapping exports safe to import.
+
+Broker imports also refresh regional exposure. PersPort uses official issuer look-through data for supported broad-market funds, fund mandates for unambiguous regional ETFs, and conservative ISIN classification for direct securities. Manual weights entered on **Breakdown** take precedence over automatic refreshes; unsupported or incomplete exposure remains visibly unclassified.
 
 ### Automatic FX conversion
 

@@ -23,9 +23,26 @@ model Security {
   aliases            SecurityAlias[]
   quote              PriceQuote?
   snapshots          SecuritySnapshot[]
+  regionalExposures  SecurityRegionalExposure[]
 
   @@index([ticker])
   @@index([assetType])
+}
+
+model SecurityRegionalExposure {
+  id         String   @id @default(cuid())
+  securityId String
+  region     String
+  weight     Decimal
+  source     String
+  sourceUrl  String?
+  asOf       DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  security   Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+
+  @@unique([securityId, region])
+  @@index([securityId])
 }
 
 model BrokerAccount {

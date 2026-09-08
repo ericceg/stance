@@ -13,13 +13,14 @@ function hasComparableLiveQuotes(positions: Array<{ quantity: number; quote: { p
 }
 
 export async function loadPortfolio() {
-  const [securities, brokerAccounts, transactions, quotes, snapshots, securitySnapshots] = await Promise.all([
+  const [securities, brokerAccounts, transactions, quotes, snapshots, securitySnapshots, regionalExposures] = await Promise.all([
     prisma.security.findMany({ orderBy: { name: "asc" } }),
     prisma.brokerAccount.findMany({ orderBy: { brokerName: "asc" } }),
     prisma.transaction.findMany({ orderBy: [{ timestamp: "asc" }, { createdAt: "asc" }] }),
     prisma.priceQuote.findMany(),
     prisma.portfolioSnapshot.findMany({ orderBy: { timestamp: "asc" } }),
     prisma.securitySnapshot.findMany({ orderBy: { timestamp: "asc" } }),
+    prisma.securityRegionalExposure.findMany({ orderBy: [{ securityId: "asc" }, { region: "asc" }] }),
   ]);
 
   const knownTransactions = transactions.filter((transaction) => (TRANSACTION_TYPES as readonly string[]).includes(transaction.type));
@@ -94,6 +95,7 @@ export async function loadPortfolio() {
     brokerAccounts,
     snapshots,
     securitySnapshots,
+    regionalExposures,
   };
 }
 
@@ -131,6 +133,12 @@ export async function recordCurrentPortfolioSnapshot() {
 export async function getDashboardData() {
   const data = await loadPortfolio();
   const accountById = new Map(data.brokerAccounts.map((account) => [account.id, account]));
+  const regionalExposureBySecurity = new Map<string, typeof data.regionalExposures>();
+  for (const exposure of data.regionalExposures) {
+    const rows = regionalExposureBySecurity.get(exposure.securityId) ?? [];
+    rows.push(exposure);
+    regionalExposureBySecurity.set(exposure.securityId, rows);
+  }
 
   const positions = data.summary.positions
     .filter((position) => position.quantity > 0)
@@ -147,21 +155,41 @@ export async function getDashboardData() {
         .map((accountPosition) => accountById.get(accountPosition.brokerAccountId)?.brokerName ?? "Unknown")
         .filter((value, index, values) => values.indexOf(value) === index)
         .join(" + "),
+      regionalExposures: (regionalExposureBySecurity.get(position.securityId) ?? []).map((exposure) => ({
+        region: exposure.region,
+        weight: exposure.weight.toNumber(),
+        source: exposure.source,
+        sourceUrl: exposure.sourceUrl,
+        asOf: exposure.asOf?.toISOString() ?? null,
+        updatedAt: exposure.updatedAt.toISOString(),
+      })),
     }));
 
   const assetAllocation = new Map<string, number>();
   const currencyAllocation = new Map<string, number>();
   const brokerAllocation = new Map<string, number>();
+  const regionAllocation = new Map<string, number>();
   const accountCashByAccount: Array<{ brokerName: string; accountName: string; valueChf: number }> = [];
 
   assetAllocation.set("Cash", data.summary.cashChf);
   currencyAllocation.set("CHF", data.summary.cashChf);
+  regionAllocation.set("Cash", data.summary.cashChf);
 
   for (const position of positions) {
     if (position.marketValueChf === null) continue;
     const assetLabel = position.security.assetType === "ETF" ? "ETFs" : position.security.assetType === "STOCK" ? "Stocks" : "Other";
     assetAllocation.set(assetLabel, (assetAllocation.get(assetLabel) ?? 0) + position.marketValueChf);
     currencyAllocation.set(position.security.tradingCurrency, (currencyAllocation.get(position.security.tradingCurrency) ?? 0) + position.marketValueChf);
+    const exposureTotal = position.regionalExposures.reduce((total, exposure) => total + exposure.weight, 0);
+    const scale = exposureTotal > 100 ? 100 / exposureTotal : 1;
+    for (const exposure of position.regionalExposures) {
+      const value = position.marketValueChf * exposure.weight * scale / 100;
+      regionAllocation.set(exposure.region, (regionAllocation.get(exposure.region) ?? 0) + value);
+    }
+    const unclassifiedWeight = Math.max(0, 100 - exposureTotal * scale);
+    if (unclassifiedWeight > 0.005) {
+      regionAllocation.set("Unclassified", (regionAllocation.get("Unclassified") ?? 0) + position.marketValueChf * unclassifiedWeight / 100);
+    }
     for (const accountPosition of position.accountPositions) {
       if (accountPosition.marketValueChf === null) continue;
       brokerAllocation.set(accountPosition.brokerName, (brokerAllocation.get(accountPosition.brokerName) ?? 0) + accountPosition.marketValueChf);
@@ -286,6 +314,7 @@ export async function getDashboardData() {
       asset: toAllocation(assetAllocation),
       currency: toAllocation(currencyAllocation),
       broker: toAllocation(brokerAllocation),
+      region: toAllocation(regionAllocation),
     },
     accountCash: accountCashByAccount,
     updatedAt: portfolioQuoteTimestamp,

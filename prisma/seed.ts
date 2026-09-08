@@ -71,6 +71,18 @@ async function main() {
     ],
   });
 
+  await prisma.securityRegionalExposure.createMany({
+    data: [
+      { securityId: ids.vwce, region: "North America", weight: 64.6, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
+      { securityId: ids.vwce, region: "Europe", weight: 12.12, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
+      { securityId: ids.vwce, region: "Pacific", weight: 9.98, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
+      { securityId: ids.vwce, region: "Emerging Markets", weight: 7.6, source: "SEED", asOf: new Date("2026-07-31T12:00:00Z") },
+      { securityId: ids.nesn, region: "Europe", weight: 100, source: "SEED" },
+      { securityId: ids.on, region: "North America", weight: 100, source: "SEED" },
+      { securityId: ids.eimi, region: "Emerging Markets", weight: 100, source: "SEED" },
+    ],
+  });
+
   await prisma.securityAlias.createMany({
     data: [
       { securityId: ids.vwce, brokerAccountId: ids.degiro, source: "DEGIRO", brokerSymbol: "VWCE", sourceSecurityId: "fictional-vwce-id" },

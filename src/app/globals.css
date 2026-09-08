@@ -422,6 +422,37 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
   .preview-heading { align-items: flex-start; flex-direction: column; }
 }
 
+.region-data-panel { overflow: hidden; }
+.region-data-heading { align-items: center; padding: 19px 22px 15px; }
+.region-data-heading form { margin-left: auto; }
+.region-data-summary { display: grid; grid-template-columns: repeat(3, 90px) 1fr; align-items: center; gap: 1px; border-block: 1px solid var(--line); background: var(--line); }
+.region-data-summary > div, .region-data-summary > p { min-height: 68px; display: grid; align-content: center; padding: 13px 18px; margin: 0; background: var(--surface-soft); }
+.region-data-summary strong { font-family: var(--font-geist-mono); font-size: 15px; }
+.region-data-summary span { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .07em; }
+.region-data-summary > p { color: var(--muted); font-size: 9px; line-height: 1.55; }
+.region-data-panel > .import-result { margin: 14px 22px 0; }
+.region-editor { display: grid; grid-template-columns: minmax(220px, .45fr) minmax(500px, 1.55fr); gap: 22px; padding: 20px 22px 22px; }
+.region-weight-form { display: grid; gap: 15px; }
+.region-weight-grid { display: grid; grid-template-columns: repeat(5, minmax(90px, 1fr)); gap: 10px; }
+.region-editor-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.region-editor-actions > a { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; color: var(--green); font-size: 9px; font-weight: 600; }
+.region-editor-actions > a svg { width: 13px; }
+
+@media (max-width: 900px) {
+  .region-data-summary { grid-template-columns: repeat(3, 1fr); }
+  .region-data-summary > p { grid-column: 1 / -1; min-height: auto; }
+  .region-editor { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 620px) {
+  .region-data-heading { align-items: stretch; flex-direction: column; }
+  .region-data-heading form, .region-data-heading button { width: 100%; }
+  .region-weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .region-editor-actions { align-items: stretch; flex-direction: column; }
+  .region-editor-actions > a { margin: 0 0 4px; }
+  .region-editor-actions > button { width: 100%; }
+}
+
 /* Canvas performance chart, with compact trading-terminal controls. */
 .trading-panel { border-radius: 10px; }
 .trading-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 18px; border-bottom: 1px solid var(--line); }

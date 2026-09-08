@@ -20,7 +20,7 @@ import { formatChf, formatPercent, toneForValue } from "@/lib/format";
 type Position = DashboardData["positions"][number];
 type Summary = DashboardData["summary"];
 type AccountCash = DashboardData["accountCash"];
-type Dimension = "holding" | "asset" | "currency" | "broker";
+type Dimension = "holding" | "asset" | "region" | "currency" | "broker";
 type Metric = "value" | "cost" | "pnl" | "today" | "income" | "fees";
 type SortKey = "name" | "value" | "cost" | "pnl" | "return" | "today" | "income" | "fees" | "weight";
 
@@ -65,6 +65,15 @@ function allocationRows(positions: Position[], accountCash: AccountCash, dimensi
       grouped.set(label, (grouped.get(label) ?? 0) + value);
     }
     if (dimension === "currency") grouped.set(position.security.tradingCurrency, (grouped.get(position.security.tradingCurrency) ?? 0) + value);
+    if (dimension === "region") {
+      const exposureTotal = position.regionalExposures.reduce((total, exposure) => total + exposure.weight, 0);
+      const scale = exposureTotal > 100 ? 100 / exposureTotal : 1;
+      for (const exposure of position.regionalExposures) {
+        grouped.set(exposure.region, (grouped.get(exposure.region) ?? 0) + value * exposure.weight * scale / 100);
+      }
+      const unclassifiedWeight = Math.max(0, 100 - exposureTotal * scale);
+      if (unclassifiedWeight > 0.005) grouped.set("Unclassified", (grouped.get("Unclassified") ?? 0) + value * unclassifiedWeight / 100);
+    }
     if (dimension === "broker") {
       for (const account of position.accountPositions) {
         grouped.set(account.brokerName, (grouped.get(account.brokerName) ?? 0) + accountMetricValue(position, account, metric));
@@ -72,7 +81,7 @@ function allocationRows(positions: Position[], accountCash: AccountCash, dimensi
     }
   }
   if (metric === "value") {
-    if (dimension === "holding" || dimension === "asset") grouped.set("Cash", accountCash.reduce((total, account) => total + account.valueChf, 0));
+    if (dimension === "holding" || dimension === "asset" || dimension === "region") grouped.set("Cash", accountCash.reduce((total, account) => total + account.valueChf, 0));
     if (dimension === "broker") for (const account of accountCash) grouped.set(account.brokerName, (grouped.get(account.brokerName) ?? 0) + account.valueChf);
   }
   return [...grouped.entries()]
@@ -167,7 +176,7 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
           <div className="section-heading"><div><p>Allocation explorer</p><h2>Slice the portfolio your way</h2></div></div>
           <div className="breakdown-controls">
             <div className="breakdown-segment" role="tablist" aria-label="Breakdown dimension">
-              {(["holding", "asset", "currency", "broker"] as const).map((item) => <button aria-selected={dimension === item} className={dimension === item ? "is-active" : ""} key={item} onClick={() => setDimension(item)} role="tab" type="button">{item === "asset" ? "Asset type" : item[0].toUpperCase() + item.slice(1)}</button>)}
+              {(["holding", "asset", "region", "currency", "broker"] as const).map((item) => <button aria-selected={dimension === item} className={dimension === item ? "is-active" : ""} key={item} onClick={() => setDimension(item)} role="tab" type="button">{item === "asset" ? "Asset type" : item[0].toUpperCase() + item.slice(1)}</button>)}
             </div>
             <label className="breakdown-select"><span>Measure</span><select aria-label="Breakdown measure" onChange={(event) => setMetric(event.target.value as Metric)} value={metric}>{(Object.keys(metricLabels) as Metric[]).map((item) => <option key={item} value={item}>{metricLabels[item]}</option>)}</select></label>
           </div>

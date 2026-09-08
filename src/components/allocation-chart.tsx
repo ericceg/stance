@@ -10,6 +10,7 @@ type AllocationData = {
   asset: { name: string; value: number }[];
   currency: { name: string; value: number }[];
   broker: { name: string; value: number }[];
+  region: { name: string; value: number }[];
 };
 
 export function AllocationChart({ allocation, total }: { allocation: AllocationData; total: number }) {
@@ -20,7 +21,7 @@ export function AllocationChart({ allocation, total }: { allocation: AllocationD
     <section className="panel allocation-panel">
       <div className="section-heading"><div><p>Allocation</p><h2>Portfolio mix</h2></div></div>
       <div className="allocation-tabs" role="tablist" aria-label="Allocation dimension">
-        {(["asset", "currency", "broker"] as const).map((item) => <button aria-selected={view === item} className={view === item ? "is-active" : ""} key={item} onClick={() => setView(item)} role="tab" type="button">{item === "asset" ? "Asset type" : item[0].toUpperCase() + item.slice(1)}</button>)}
+        {(["asset", "region", "currency", "broker"] as const).map((item) => <button aria-selected={view === item} className={view === item ? "is-active" : ""} key={item} onClick={() => setView(item)} role="tab" type="button">{item === "asset" ? "Asset type" : item[0].toUpperCase() + item.slice(1)}</button>)}
       </div>
       <div className="allocation-body">
         <div className="donut-wrap">

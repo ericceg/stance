@@ -7,6 +7,7 @@ import { importDegiroCsv, type DegiroImportReport } from "@/lib/import/degiro-im
 import { syncTrading212, type Trading212SyncReport } from "@/lib/import/trading212-sync";
 import { refreshOpenPositionQuotes } from "@/lib/portfolio/market-data-sync";
 import { rebuildPortfolioHistory } from "@/lib/portfolio/history-rebuild";
+import { refreshRegionalExposures } from "@/lib/portfolio/regional-exposure";
 
 export interface DegiroImportState {
   error?: string;
@@ -34,6 +35,18 @@ async function rebuildHistoryAfterImport() {
     return [error instanceof Error
       ? `Historical performance could not be rebuilt: ${error.message}`
       : "Historical performance could not be rebuilt."];
+  }
+}
+
+async function refreshRegionsAfterImport() {
+  try {
+    const report = await refreshRegionalExposures();
+    return report.warnings;
+  } catch (error) {
+    console.error("Regional exposure refresh failed", error);
+    return [error instanceof Error
+      ? `Regional exposure could not be refreshed: ${error.message}`
+      : "Regional exposure could not be refreshed."];
   }
 }
 
@@ -75,12 +88,13 @@ export async function importDegiroAction(
       csv: await file.text(),
     });
     const quoteReport = await refreshOpenPositionQuotes();
-    const historyWarnings = await rebuildHistoryAfterImport();
+    const [historyWarnings, regionWarnings] = await Promise.all([rebuildHistoryAfterImport(), refreshRegionsAfterImport()]);
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
     revalidatePath("/import");
-    return { report: { ...report, quotesUpdated: quoteReport.updated, warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings] } };
+    revalidatePath("/breakdown");
+    return { report: { ...report, quotesUpdated: quoteReport.updated, warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings, ...regionWarnings] } };
   } catch (error) {
     console.error("DEGIRO import failed", error);
     return { error: error instanceof Error ? error.message : "The DEGIRO statement could not be imported." };
@@ -96,16 +110,17 @@ export async function syncTrading212Action(
   try {
     const report = await syncTrading212();
     const quoteReport = await refreshOpenPositionQuotes();
-    const historyWarnings = await rebuildHistoryAfterImport();
+    const [historyWarnings, regionWarnings] = await Promise.all([rebuildHistoryAfterImport(), refreshRegionsAfterImport()]);
     revalidatePath("/");
     revalidatePath("/transactions");
     revalidatePath("/data-issues");
     revalidatePath("/import");
+    revalidatePath("/breakdown");
     return {
       report: {
         ...report,
         quotesUpdated: report.quotesUpdated + quoteReport.updated,
-        warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings],
+        warnings: [...report.warnings, ...quoteReport.warnings, ...historyWarnings, ...regionWarnings],
       },
     };
   } catch (error) {
