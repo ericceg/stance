@@ -152,6 +152,7 @@ export async function getDashboardData() {
   const assetAllocation = new Map<string, number>();
   const currencyAllocation = new Map<string, number>();
   const brokerAllocation = new Map<string, number>();
+  const accountCashByAccount: Array<{ brokerName: string; accountName: string; valueChf: number }> = [];
 
   assetAllocation.set("Cash", data.summary.cashChf);
   currencyAllocation.set("CHF", data.summary.cashChf);
@@ -171,6 +172,7 @@ export async function getDashboardData() {
     const accountTransactions = data.accountingTransactions.filter((transaction) => transaction.brokerAccountId === account.id);
     const accountCash = calculateCashChf(accountTransactions);
     brokerAllocation.set(account.brokerName, (brokerAllocation.get(account.brokerName) ?? 0) + accountCash);
+    accountCashByAccount.push({ brokerName: account.brokerName, accountName: account.accountName, valueChf: accountCash });
   }
 
   const toAllocation = (allocation: Map<string, number>) => [...allocation.entries()]
@@ -285,6 +287,7 @@ export async function getDashboardData() {
       currency: toAllocation(currencyAllocation),
       broker: toAllocation(brokerAllocation),
     },
+    accountCash: accountCashByAccount,
     updatedAt: portfolioQuoteTimestamp,
     quoteProviderLabel,
   };

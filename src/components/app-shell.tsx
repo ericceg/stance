@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ArrowDownToLine,
+  ChartPie,
   DatabaseZap,
   Landmark,
   LayoutDashboard,
@@ -12,6 +13,7 @@ import {
 
 const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/breakdown", label: "Breakdown", icon: ChartPie },
   { href: "/#holdings", label: "Holdings", icon: WalletCards },
   { href: "/transactions", label: "Transactions", icon: Landmark },
   { href: "/import", label: "Import", icon: ArrowDownToLine },
