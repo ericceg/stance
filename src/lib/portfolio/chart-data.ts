@@ -111,3 +111,12 @@ export function aggregateChartSeries(series: ChartPoint[][]): ChartPoint[] {
   }
   return [...totals.values()].sort((left, right) => left.time - right.time);
 }
+
+export function rebaseChartSeries(points: ChartPoint[]): ChartPoint[] {
+  const baseline = points.at(0)?.displayValue;
+  if (baseline === undefined) return points;
+  return points.map((point, index) => ({
+    ...point,
+    displayValue: index === 0 ? 0 : point.displayValue - baseline,
+  }));
+}

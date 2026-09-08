@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateChartSeries, indexChartPoints, prepareChartData, type ChartSnapshot } from "./chart-data";
+import { aggregateChartSeries, indexChartPoints, prepareChartData, rebaseChartSeries, type ChartSnapshot } from "./chart-data";
 
 function point(timestamp: string, value: number, source: ChartSnapshot["source"] = "INTRADAY_COMPARABLE"): ChartSnapshot {
   return { timestamp, totalPnlChf: value, portfolioValueChf: value + 1000, source, isLive: source === "LIVE_ESTIMATE" };
@@ -89,5 +89,14 @@ describe("security chart aggregation", () => {
     const first = prepareChartData([point("2026-09-01T10:00:00Z", 10), point("2026-09-02T10:00:00Z", 20)], "ALL", "pnl", "day").fullData;
     const second = prepareChartData([point("2026-09-01T10:00:00Z", 3), point("2026-09-02T10:00:00Z", 7)], "ALL", "pnl", "day").fullData;
     expect(aggregateChartSeries([first, second]).map((item) => item.displayValue)).toEqual([13, 27]);
+  });
+
+  it("rebases each comparison series to its own first visible valuation", () => {
+    const first = prepareChartData([point("2026-09-01T10:00:00Z", 120), point("2026-09-02T10:00:00Z", 150)], "ALL", "pnl", "day").fullData;
+    const second = prepareChartData([point("2026-09-01T10:00:00Z", -20), point("2026-09-02T10:00:00Z", 5)], "ALL", "pnl", "day").fullData;
+
+    expect(rebaseChartSeries(first).map((item) => item.displayValue)).toEqual([0, 30]);
+    expect(rebaseChartSeries(second).map((item) => item.displayValue)).toEqual([0, 25]);
+    expect(rebaseChartSeries([])).toEqual([]);
   });
 });

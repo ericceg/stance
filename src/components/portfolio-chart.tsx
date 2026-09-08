@@ -5,12 +5,13 @@ import { Activity, ChartNoAxesCombined, Minus, Plus, RotateCcw } from "lucide-re
 import { AreaSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
 import { formatChf } from "@/lib/format";
 import { readIncludeClosedChartPositions, subscribeToChartPreferences } from "@/lib/preferences";
-import { aggregateChartSeries, chartRanges as ranges, chartResolutions as resolutions, prepareChartData, indexChartPoints, type ChartRange as Range, type ChartResolution as Resolution, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
+import { aggregateChartSeries, chartRanges as ranges, chartResolutions as resolutions, prepareChartData, indexChartPoints, rebaseChartSeries, type ChartRange as Range, type ChartResolution as Resolution, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
 
 // TradingView Lightweight Charts™
 // Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
 type Metric = "pnl" | "value";
 type ComparisonMode = "individual" | "aggregate";
+type BaselineMode = "level" | "change";
 interface SecurityChartSeries {
   securityId: string;
   ticker: string;
@@ -68,7 +69,7 @@ function tradeMarkers(data: ChartPoint[], transactions: ChartTransaction[], dail
   }).sort((left, right) => Number(left.time) - Number(right.time));
 }
 
-function TradingPlot({ data, daily, metric, area, overlays, showPortfolio, showTrades, transactions }: { data: ChartPoint[]; daily: boolean; metric: Metric; area: boolean; overlays: OverlaySeries[]; showPortfolio: boolean; showTrades: boolean; transactions: ChartTransaction[] }) {
+function TradingPlot({ data, daily, metric, baselineMode, area, overlays, showPortfolio, showTrades, transactions }: { data: ChartPoint[]; daily: boolean; metric: Metric; baselineMode: BaselineMode; area: boolean; overlays: OverlaySeries[]; showPortfolio: boolean; showTrades: boolean; transactions: ChartTransaction[] }) {
   const container = useRef<HTMLDivElement>(null);
   const readout = useRef<HTMLOutputElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -92,7 +93,7 @@ function TradingPlot({ data, daily, metric, area, overlays, showPortfolio, showT
       timeScale: { borderColor: color("--line"), timeVisible: !daily, secondsVisible: false, rightOffset: 2, minBarSpacing: 0.01 },
       localization: {
         locale: "en-CH",
-        priceFormatter: (value: number) => formatChf(value).replace("CHF ", ""),
+        priceFormatter: (value: number) => formatChf(value, { signed: baselineMode === "change" }).replace("CHF ", ""),
         timeFormatter: (time: number) => (daily ? dateFormat : timeFormat).format(new Date(time * 1000)),
       },
       handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
@@ -101,6 +102,7 @@ function TradingPlot({ data, daily, metric, area, overlays, showPortfolio, showT
     // The canvas engine supports full intraday history; deduplicate to its second precision.
     const points = indexChartPoints(data, daily);
     let series: ISeriesApi<"Area"> | null = null;
+    let zeroLineAdded = false;
     if (showPortfolio) {
       series = chart.addSeries(AreaSeries, {
         lineColor: color("--chart"), lineWidth: 2,
@@ -110,6 +112,10 @@ function TradingPlot({ data, daily, metric, area, overlays, showPortfolio, showT
         priceFormat: { type: "price", precision: 2, minMove: 0.01 },
       });
       series.setData([...points].map(([time, point]) => ({ time: time as UTCTimestamp, value: point.displayValue })));
+      if (baselineMode === "change") {
+        series.createPriceLine({ price: 0, color: color("--line-strong"), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
+        zeroLineAdded = true;
+      }
       if (showTrades && overlays.length === 0) createSeriesMarkers(series, tradeMarkers(data, transactions, daily), { zOrder: "aboveSeries" });
     }
     for (const overlay of overlays) {
@@ -123,6 +129,10 @@ function TradingPlot({ data, daily, metric, area, overlays, showPortfolio, showT
       });
       const overlayPoints = indexChartPoints(overlay.data, daily);
       overlaySeries.setData([...overlayPoints].map(([time, point]) => ({ time: time as UTCTimestamp, value: point.displayValue })));
+      if (baselineMode === "change" && !zeroLineAdded) {
+        overlaySeries.createPriceLine({ price: 0, color: color("--line-strong"), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
+        zeroLineAdded = true;
+      }
       if (showTrades) createSeriesMarkers(overlaySeries, tradeMarkers(overlay.data, transactions.filter((transaction) => overlay.securityIds.includes(transaction.securityId)), daily), { zOrder: "aboveSeries" });
     }
     chart.timeScale().fitContent();
@@ -132,7 +142,7 @@ function TradingPlot({ data, daily, metric, area, overlays, showPortfolio, showT
     const primaryPoints = showPortfolio ? points : indexChartPoints(primaryData, daily);
     const showPoint = (point: ChartPoint | undefined) => {
       if (!readout.current || !point) return;
-      readout.current.textContent = `${(daily ? dateFormat : timeFormat).format(new Date(point.time))}${daily ? "" : " UTC"}   ·   ${formatChf(point.displayValue, { signed: metric === "pnl" })}`;
+      readout.current.textContent = `${(daily ? dateFormat : timeFormat).format(new Date(point.time))}${daily ? "" : " UTC"}   ·   ${formatChf(point.displayValue, { signed: metric === "pnl" || baselineMode === "change" })}`;
     };
     showPoint(primaryData.at(-1));
     chart.subscribeCrosshairMove((event) => {
@@ -150,11 +160,11 @@ function TradingPlot({ data, daily, metric, area, overlays, showPortfolio, showT
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [data, daily, metric, overlays, showPortfolio, showTrades, transactions]);
+  }, [data, daily, metric, baselineMode, overlays, showPortfolio, showTrades, transactions]);
 
   useEffect(() => {
     seriesRef.current?.applyOptions({ topColor: area ? "rgba(63, 155, 106, 0.16)" : "transparent", bottomColor: "rgba(63, 155, 106, 0)" });
-  }, [area, data, daily, metric, overlays, showPortfolio, showTrades, transactions]);
+  }, [area, data, daily, metric, baselineMode, overlays, showPortfolio, showTrades, transactions]);
 
   const zoom = (factor: number) => {
     const scale = chartRef.current?.timeScale();
@@ -166,8 +176,8 @@ function TradingPlot({ data, daily, metric, area, overlays, showPortfolio, showT
   };
 
   return <div className="trading-plot">
-    <div className="trading-readout">{showPortfolio ? <span>{metric === "pnl" ? "Portfolio P&L" : "Portfolio value"} · CHF</span> : null}{overlays.map((overlay) => <span className="overlay-key" key={overlay.id}><i style={{ backgroundColor: overlay.color }} />{overlay.label}</span>)}<output ref={readout} aria-live="off" /></div>
-    <div ref={container} className="trading-canvas" role="img" aria-label={`${daily ? "Daily" : "Intraday"} ${metric === "pnl" ? "profit and loss" : "value"} chart for ${showPortfolio ? "the portfolio" : "selected holdings"}. Drag to pan, scroll to zoom. Values are shown above the chart.`} />
+    <div className="trading-readout">{showPortfolio ? <span>{metric === "pnl" ? "Portfolio P&L" : "Portfolio value"}{baselineMode === "change" ? " change" : ""} · CHF</span> : null}{overlays.map((overlay) => <span className="overlay-key" key={overlay.id}><i style={{ backgroundColor: overlay.color }} />{overlay.label}</span>)}<output ref={readout} aria-live="off" /></div>
+    <div ref={container} className="trading-canvas" role="img" aria-label={`${daily ? "Daily" : "Intraday"} ${metric === "pnl" ? "profit and loss" : "value"} ${baselineMode === "change" ? "change chart rebased to zero" : "chart"} for ${showPortfolio ? "the portfolio" : "selected holdings"}. Drag to pan, scroll to zoom. Values are shown above the chart.`} />
     <div className="trading-navigation" aria-label="Chart navigation">
       <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => zoom(1.5)}><Minus /></button>
       <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => zoom(0.65)}><Plus /></button>
@@ -185,6 +195,7 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
   const [showTrades, setShowTrades] = useState(false);
   const [selectedSecurityIds, setSelectedSecurityIds] = useState<string[]>([]);
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("individual");
+  const [baselineMode, setBaselineMode] = useState<BaselineMode>("level");
   const includeClosedPositions = useSyncExternalStore(
     subscribeToChartPreferences,
     readIncludeClosedChartPositions,
@@ -213,6 +224,10 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
     }
     return plottableSeries.map((series) => ({ id: series.securityId, label: series.ticker, color: series.color, data: series.data, securityIds: [series.securityId] }));
   }, [comparisonMode, plottableSeries, selectedAggregateData]);
+  const plottedData = useMemo(() => baselineMode === "change" ? rebaseChartSeries(data) : data, [baselineMode, data]);
+  const plottedOverlays = useMemo(() => baselineMode === "change"
+    ? overlays.map((overlay) => ({ ...overlay, data: rebaseChartSeries(overlay.data) }))
+    : overlays, [baselineMode, overlays]);
   const hasMissingSelectedHistory = selectedSeries.some((series) => series.data.length < 2);
   const allSecuritiesSelected = availableSecuritySeries.length > 0 && visibleSelectedSecurityIds.length === availableSecuritySeries.length;
   const liveEstimate = displayPoint?.source === "LIVE_ESTIMATE" ? displayPoint.displayValue : null;
@@ -254,17 +269,21 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
         <button type="button" aria-pressed={comparisonMode === "individual"} onClick={() => setComparisonMode("individual")}>Separate</button>
         <button type="button" aria-pressed={comparisonMode === "aggregate"} onClick={() => setComparisonMode("aggregate")}>Combined</button>
       </div>
+      <div className="comparison-basis" aria-label="Chart baseline">
+        <button type="button" aria-pressed={baselineMode === "level"} onClick={() => setBaselineMode("level")}>Level</button>
+        <button type="button" aria-pressed={baselineMode === "change"} title="Start every line at CHF 0 for the selected period" onClick={() => setBaselineMode("change")}>Change</button>
+      </div>
       <button className="trade-toggle" type="button" aria-pressed={showTrades} onClick={() => setShowTrades((current) => !current)}>Buy/Sell</button>
     </div> : null}
     <div className="trading-summary">
       <div className="terminal-value-row"><strong>{formatChf(chartValue, { signed: metric === "pnl" })}</strong><span className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}<small>{range}</small></span></div>
       <div className="trading-extremes"><span>{daily ? `${resolutionLabel} high` : "High"} <strong>{formatChf(high)}</strong></span><span>{daily ? `${resolutionLabel} low` : "Low"} <strong>{formatChf(low)}</strong></span></div>
     </div>
-    {hasVisibleTrend ? <TradingPlot data={data} daily={daily} metric={metric} area={area} overlays={overlays} showPortfolio={showPortfolio} showTrades={showTrades} transactions={chartTransactions} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{!showPortfolio && visibleSelectedSecurityIds.length === 0 ? "No chart series selected" : !showPortfolio ? "Holding history unavailable" : hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{!showPortfolio ? "Enable Portfolio or select holdings with available history." : hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
+    {hasVisibleTrend ? <TradingPlot data={plottedData} daily={daily} metric={metric} baselineMode={baselineMode} area={area} overlays={plottedOverlays} showPortfolio={showPortfolio} showTrades={showTrades} transactions={chartTransactions} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{!showPortfolio && visibleSelectedSecurityIds.length === 0 ? "No chart series selected" : !showPortfolio ? "Holding history unavailable" : hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{!showPortfolio ? "Enable Portfolio or select holdings with available history." : hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
     <div className="trading-bottom-bar">
       <div className="range-tabs" aria-label="Chart time range">{ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} aria-pressed={item === range} onClick={() => setRange(item)} type="button">{item}</button>)}</div>
       <span>{resolutionLabel} intervals · UTC<span className="trading-gesture-hint"> · Drag to pan · Scroll to zoom</span></span>
     </div>
-    <footer className="trading-note"><span>{selectedResolution === "intraday" ? "Intraday detail available for the latest 7 days" : `Last available valuation each ${selectedResolution}`}</span>{showTrades ? <span className="trade-key"><i className="buy-marker" /> Buy <i className="sell-marker" /> Sell</span> : null}{hasMissingSelectedHistory ? <span>Some holding history needs a history rebuild</span> : null}{liveEstimate !== null ? <span>Live estimate <strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong> · excluded from chart</span> : null}</footer>
+    <footer className="trading-note"><span>{baselineMode === "change" ? "Each line starts at CHF 0 at its first valuation in this range" : selectedResolution === "intraday" ? "Intraday detail available for the latest 7 days" : `Last available valuation each ${selectedResolution}`}</span>{showTrades ? <span className="trade-key"><i className="buy-marker" /> Buy <i className="sell-marker" /> Sell</span> : null}{hasMissingSelectedHistory ? <span>Some holding history needs a history rebuild</span> : null}{liveEstimate !== null ? <span>Live estimate <strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong> · excluded from chart</span> : null}</footer>
   </section>;
 }
