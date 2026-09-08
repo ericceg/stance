@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Activity, ChartNoAxesCombined, Minus, Plus, RotateCcw } from "lucide-react";
-import { AreaSeries, ColorType, CrosshairMode, LineSeries, LineStyle, PriceScaleMode, createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
-import { formatChf } from "@/lib/format";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { Activity, ChartNoAxesCombined } from "lucide-react";
+import { type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
+import { TimeSeriesChart, type ChartScaleMode, type TimeSeriesChartSeries } from "@/components/chart-engine";
+import { formatChf, formatPercent } from "@/lib/format";
 import { readIncludeClosedChartPositions, subscribeToChartPreferences } from "@/lib/preferences";
-import { aggregateChartSeries, chartRanges as ranges, chartResolutions as resolutions, prepareChartData, indexChartPoints, rebaseChartSeries, type ChartRange as Range, type ChartResolution as Resolution, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
+import { aggregateChartSeries, chartRanges as ranges, chartResolutions as resolutions, drawdownChartSeries, prepareChartData, indexChartPoints, rebaseChartSeries, type ChartRange as Range, type ChartResolution as Resolution, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
 
 // TradingView Lightweight Charts™
 // Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
-type Metric = "pnl" | "value";
+type Metric = "pnl" | "value" | "drawdown";
 type ComparisonMode = "individual" | "aggregate";
 type BaselineMode = "level" | "change";
-type ScaleMode = "linear" | "log";
+type ScaleMode = ChartScaleMode;
 interface SecurityChartSeries {
   securityId: string;
   ticker: string;
@@ -45,9 +46,6 @@ interface OverlaySeries {
 
 const overlayColors = ["#4385f5", "#e08b3e", "#a66de0", "#d85c78", "#18a6a6", "#8d9b3f"];
 
-const dateFormat = new Intl.DateTimeFormat("en-CH", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
-const timeFormat = new Intl.DateTimeFormat("en-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
-
 function tradeMarkers(data: ChartPoint[], transactions: ChartTransaction[], daily: boolean): SeriesMarker<UTCTimestamp>[] {
   const times = [...indexChartPoints(data, daily).keys()];
   if (times.length === 0) return [];
@@ -68,123 +66,6 @@ function tradeMarkers(data: ChartPoint[], transactions: ChartTransaction[], dail
       size: 0,
     }];
   }).sort((left, right) => Number(left.time) - Number(right.time));
-}
-
-function TradingPlot({ data, daily, metric, baselineMode, scaleMode, area, overlays, showPortfolio, showTrades, transactions }: { data: ChartPoint[]; daily: boolean; metric: Metric; baselineMode: BaselineMode; scaleMode: ScaleMode; area: boolean; overlays: OverlaySeries[]; showPortfolio: boolean; showTrades: boolean; transactions: ChartTransaction[] }) {
-  const container = useRef<HTMLDivElement>(null);
-  const readout = useRef<HTMLOutputElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
-
-  useEffect(() => {
-    if (!container.current) return;
-    const host = container.current;
-    const styles = getComputedStyle(host);
-    const color = (name: string) => styles.getPropertyValue(name).trim();
-    const chart = createChart(host, {
-      autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: color("--surface-strong") }, textColor: color("--muted"), fontSize: 11, attributionLogo: true },
-      grid: { vertLines: { color: color("--line") }, horzLines: { color: color("--line") } },
-      crosshair: {
-        mode: CrosshairMode.Magnet,
-        vertLine: { color: color("--muted"), width: 1, style: LineStyle.Dashed, labelBackgroundColor: color("--ink-soft") },
-        horzLine: { color: color("--muted"), width: 1, style: LineStyle.Dashed, labelBackgroundColor: color("--ink-soft") },
-      },
-      rightPriceScale: { borderColor: color("--line"), minimumWidth: 84, mode: scaleMode === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal, scaleMargins: { top: 0.16, bottom: 0.12 } },
-      timeScale: { borderColor: color("--line"), timeVisible: !daily, secondsVisible: false, rightOffset: 2, minBarSpacing: 0.01 },
-      localization: {
-        locale: "en-CH",
-        priceFormatter: (value: number) => formatChf(value, { signed: baselineMode === "change" }).replace("CHF ", ""),
-        timeFormatter: (time: number) => (daily ? dateFormat : timeFormat).format(new Date(time * 1000)),
-      },
-      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
-      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
-    });
-    // The canvas engine supports full intraday history; deduplicate to its second precision.
-    const points = indexChartPoints(data, daily);
-    let series: ISeriesApi<"Area"> | null = null;
-    let zeroLineAdded = false;
-    if (showPortfolio) {
-      series = chart.addSeries(AreaSeries, {
-        lineColor: color("--chart"), lineWidth: 2,
-        topColor: "rgba(63, 155, 106, 0.16)", bottomColor: "rgba(63, 155, 106, 0)",
-        priceLineStyle: LineStyle.Dashed, priceLineColor: color("--chart"),
-        crosshairMarkerRadius: 4,
-        priceFormat: { type: "price", precision: 2, minMove: 0.01 },
-      });
-      series.setData([...points].map(([time, point]) => ({ time: time as UTCTimestamp, value: point.displayValue })));
-      if (baselineMode === "change") {
-        series.createPriceLine({ price: 0, color: color("--line-strong"), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
-        zeroLineAdded = true;
-      }
-      if (showTrades && overlays.length === 0) createSeriesMarkers(series, tradeMarkers(data, transactions, daily), { zOrder: "aboveSeries" });
-    }
-    for (const overlay of overlays) {
-      const overlaySeries = chart.addSeries(LineSeries, {
-        color: overlay.color,
-        lineWidth: 2,
-        title: overlay.label,
-        priceLineVisible: false,
-        crosshairMarkerRadius: 3,
-        priceFormat: { type: "price", precision: 2, minMove: 0.01 },
-      });
-      const overlayPoints = indexChartPoints(overlay.data, daily);
-      overlaySeries.setData([...overlayPoints].map(([time, point]) => ({ time: time as UTCTimestamp, value: point.displayValue })));
-      if (baselineMode === "change" && !zeroLineAdded) {
-        overlaySeries.createPriceLine({ price: 0, color: color("--line-strong"), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
-        zeroLineAdded = true;
-      }
-      if (showTrades) createSeriesMarkers(overlaySeries, tradeMarkers(overlay.data, transactions.filter((transaction) => overlay.securityIds.includes(transaction.securityId)), daily), { zOrder: "aboveSeries" });
-    }
-    chart.timeScale().fitContent();
-    chartRef.current = chart;
-    seriesRef.current = series;
-    const primaryData = showPortfolio ? data : overlays[0]?.data ?? [];
-    const primaryPoints = showPortfolio ? points : indexChartPoints(primaryData, daily);
-    const showPoint = (point: ChartPoint | undefined) => {
-      if (!readout.current || !point) return;
-      readout.current.textContent = `${(daily ? dateFormat : timeFormat).format(new Date(point.time))}${daily ? "" : " UTC"}   ·   ${formatChf(point.displayValue, { signed: metric === "pnl" || baselineMode === "change" })}`;
-    };
-    showPoint(primaryData.at(-1));
-    chart.subscribeCrosshairMove((event) => {
-      showPoint(event.time === undefined ? primaryData.at(-1) : primaryPoints.get(Number(event.time)) ?? primaryData.at(-1));
-    });
-    const theme = window.matchMedia("(prefers-color-scheme: dark)");
-    const updateTheme = () => {
-      chart.applyOptions({ layout: { background: { type: ColorType.Solid, color: color("--surface-strong") }, textColor: color("--muted") }, grid: { vertLines: { color: color("--line") }, horzLines: { color: color("--line") } } });
-      series?.applyOptions({ lineColor: color("--chart"), priceLineColor: color("--chart") });
-    };
-    theme.addEventListener("change", updateTheme);
-    return () => {
-      theme.removeEventListener("change", updateTheme);
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-    };
-  }, [data, daily, metric, baselineMode, scaleMode, overlays, showPortfolio, showTrades, transactions]);
-
-  useEffect(() => {
-    seriesRef.current?.applyOptions({ topColor: area ? "rgba(63, 155, 106, 0.16)" : "transparent", bottomColor: "rgba(63, 155, 106, 0)" });
-  }, [area, data, daily, metric, baselineMode, scaleMode, overlays, showPortfolio, showTrades, transactions]);
-
-  const zoom = (factor: number) => {
-    const scale = chartRef.current?.timeScale();
-    const visible = scale?.getVisibleLogicalRange();
-    if (!scale || !visible) return;
-    const center = (visible.from + visible.to) / 2;
-    const half = Math.max(2, (visible.to - visible.from) * factor / 2);
-    scale.setVisibleLogicalRange({ from: center - half, to: center + half });
-  };
-
-  return <div className="trading-plot">
-    <div className="trading-readout">{showPortfolio ? <span>{metric === "pnl" ? "Portfolio P&L" : "Portfolio value"}{baselineMode === "change" ? " change" : ""} · CHF{scaleMode === "log" ? " · Log scale" : ""}</span> : null}{overlays.map((overlay) => <span className="overlay-key" key={overlay.id}><i style={{ backgroundColor: overlay.color }} />{overlay.label}</span>)}<output ref={readout} aria-live="off" /></div>
-    <div ref={container} className="trading-canvas" role="img" aria-label={`${daily ? "Daily" : "Intraday"} ${metric === "pnl" ? "profit and loss" : "value"} ${baselineMode === "change" ? "change chart rebased to zero" : "chart"} on a ${scaleMode === "log" ? "logarithmic" : "linear"} scale for ${showPortfolio ? "the portfolio" : "selected holdings"}. Drag to pan, scroll to zoom. Values are shown above the chart.`} />
-    <div className="trading-navigation" aria-label="Chart navigation">
-      <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => zoom(1.5)}><Minus /></button>
-      <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => zoom(0.65)}><Plus /></button>
-      <button type="button" aria-label="Reset chart view" title="Fit selected period" onClick={() => { chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); chartRef.current?.timeScale().fitContent(); }}><RotateCcw /></button>
-    </div>
-  </div>;
 }
 
 export function PortfolioChart({ chartTransactions, hasTransactions, recordedSnapshotCount, snapshots, securitySeries }: PortfolioChartProps) {
@@ -209,38 +90,64 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
   );
   const availableSecurityIds = useMemo(() => new Set(availableSecuritySeries.map((series) => series.securityId)), [availableSecuritySeries]);
   const visibleSelectedSecurityIds = useMemo(() => selectedSecurityIds.filter((securityId) => availableSecurityIds.has(securityId)), [availableSecurityIds, selectedSecurityIds]);
-  const { fullData: data, displayPoint, chartValue: portfolioChartValue, change: portfolioChange, low: portfolioLow, high: portfolioHigh, daily, resolution: selectedResolution } = useMemo(
-    () => prepareChartData(snapshots, range, metric, resolution), [snapshots, range, metric, resolution],
+  const sourceMetric = metric === "drawdown" ? "value" : metric;
+  const portfolioPrepared = useMemo(
+    () => prepareChartData(snapshots, range, sourceMetric, resolution), [snapshots, range, sourceMetric, resolution],
   );
+  const { displayPoint, daily, resolution: selectedResolution } = portfolioPrepared;
+  const data = useMemo(() => metric === "drawdown" ? drawdownChartSeries(portfolioPrepared.fullData) : portfolioPrepared.fullData, [metric, portfolioPrepared.fullData]);
   const resolutionLabel = selectedResolution[0].toUpperCase() + selectedResolution.slice(1);
   const selectedSeries = useMemo(() => availableSecuritySeries.filter((series) => visibleSelectedSecurityIds.includes(series.securityId)).map((series, index) => ({
     ...series,
     color: overlayColors[index % overlayColors.length],
-    data: prepareChartData(series.snapshots, range, metric, resolution).fullData,
-  })), [availableSecuritySeries, visibleSelectedSecurityIds, range, metric, resolution]);
+    data: prepareChartData(series.snapshots, range, sourceMetric, resolution).fullData,
+  })), [availableSecuritySeries, visibleSelectedSecurityIds, range, sourceMetric, resolution]);
   const plottableSeries = useMemo(() => selectedSeries.filter((series) => series.data.length >= 2), [selectedSeries]);
-  const selectedAggregateData = useMemo(() => aggregateChartSeries(plottableSeries.map((series) => series.data)), [plottableSeries]);
+  const selectedAggregateData = useMemo(() => {
+    const aggregated = aggregateChartSeries(plottableSeries.map((series) => series.data));
+    return metric === "drawdown" ? drawdownChartSeries(aggregated) : aggregated;
+  }, [metric, plottableSeries]);
   const overlays = useMemo<OverlaySeries[]>(() => {
     if (comparisonMode === "aggregate" && plottableSeries.length > 0) {
       return [{ id: "selected-total", label: `Selected (${plottableSeries.length})`, color: overlayColors[0], data: selectedAggregateData, securityIds: plottableSeries.map((series) => series.securityId) }];
     }
-    return plottableSeries.map((series) => ({ id: series.securityId, label: series.ticker, color: series.color, data: series.data, securityIds: [series.securityId] }));
-  }, [comparisonMode, plottableSeries, selectedAggregateData]);
-  const plottedData = useMemo(() => baselineMode === "change" ? rebaseChartSeries(data) : data, [baselineMode, data]);
+    return plottableSeries.map((series) => ({ id: series.securityId, label: series.ticker, color: series.color, data: metric === "drawdown" ? drawdownChartSeries(series.data) : series.data, securityIds: [series.securityId] }));
+  }, [comparisonMode, metric, plottableSeries, selectedAggregateData]);
+  const canRebase = metric !== "drawdown";
+  const plottedData = useMemo(() => canRebase && baselineMode === "change" ? rebaseChartSeries(data) : data, [baselineMode, canRebase, data]);
   const plottedOverlays = useMemo(() => baselineMode === "change"
-    ? overlays.map((overlay) => ({ ...overlay, data: rebaseChartSeries(overlay.data) }))
-    : overlays, [baselineMode, overlays]);
+    && canRebase ? overlays.map((overlay) => ({ ...overlay, data: rebaseChartSeries(overlay.data) }))
+    : overlays, [baselineMode, canRebase, overlays]);
   const hasMissingSelectedHistory = selectedSeries.some((series) => series.data.length < 2);
   const allSecuritiesSelected = availableSecuritySeries.length > 0 && visibleSelectedSecurityIds.length === availableSecuritySeries.length;
   const liveEstimate = displayPoint?.source === "LIVE_ESTIMATE" ? displayPoint.displayValue : null;
   const hasTrend = data.length >= 2 && recordedSnapshotCount >= 2;
-  const selectedFirst = selectedAggregateData.at(0)?.displayValue ?? 0;
-  const selectedLast = selectedAggregateData.at(-1)?.displayValue ?? 0;
-  const chartValue = showPortfolio ? portfolioChartValue : selectedLast;
-  const change = showPortfolio ? portfolioChange : selectedLast - selectedFirst;
-  const low = showPortfolio ? portfolioLow : selectedAggregateData.reduce((value, point) => Math.min(value, point.displayValue), selectedLast);
-  const high = showPortfolio ? portfolioHigh : selectedAggregateData.reduce((value, point) => Math.max(value, point.displayValue), selectedLast);
+  const summaryData = showPortfolio ? data : selectedAggregateData;
+  const chartValue = summaryData.at(-1)?.displayValue ?? 0;
+  const firstValue = summaryData.at(0)?.displayValue ?? 0;
+  const change = metric === "drawdown" ? chartValue : chartValue - firstValue;
+  const low = summaryData.reduce((value, point) => Math.min(value, point.displayValue), chartValue);
+  const high = summaryData.reduce((value, point) => Math.max(value, point.displayValue), chartValue);
   const hasVisibleTrend = (showPortfolio && hasTrend) || overlays.some((overlay) => overlay.data.length >= 2);
+  const chartSeries = useMemo<TimeSeriesChartSeries[]>(() => {
+    const primary = showPortfolio ? [{
+      id: "portfolio",
+      label: metric === "drawdown" ? "Portfolio drawdown" : metric === "pnl" ? "Portfolio P&L" : "Portfolio value",
+      color: metric === "drawdown" ? "#d65c5c" : "#3f9b6a",
+      data: plottedData,
+      type: area ? "area" as const : "line" as const,
+      areaTopColor: metric === "drawdown" ? "rgba(214, 92, 92, 0.16)" : undefined,
+      markers: showTrades && plottedOverlays.length === 0 ? tradeMarkers(plottedData, chartTransactions, daily) : undefined,
+    }] : [];
+    return [...primary, ...plottedOverlays.map((overlay) => ({
+      ...overlay,
+      type: "line" as const,
+      markers: showTrades ? tradeMarkers(overlay.data, chartTransactions.filter((transaction) => overlay.securityIds.includes(transaction.securityId)), daily) : undefined,
+    }))];
+  }, [area, chartTransactions, daily, metric, plottedData, plottedOverlays, showPortfolio, showTrades]);
+  const valueFormatter = useMemo(() => metric === "drawdown"
+    ? (value: number) => formatPercent(value)
+    : (value: number) => formatChf(value, { signed: metric === "pnl" || baselineMode === "change" }).replace("CHF ", ""), [baselineMode, metric]);
 
   return <section className="panel terminal-chart-panel trading-panel">
     <header className="trading-toolbar">
@@ -249,6 +156,7 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
         <div className="metric-tabs" aria-label="Chart metric">
           <button aria-pressed={metric === "pnl"} className={metric === "pnl" ? "is-active" : ""} onClick={() => setMetric("pnl")} type="button">P&amp;L</button>
           <button aria-pressed={metric === "value"} className={metric === "value" ? "is-active" : ""} onClick={() => setMetric("value")} type="button">Value</button>
+          <button aria-pressed={metric === "drawdown"} className={metric === "drawdown" ? "is-active" : ""} onClick={() => { setMetric("drawdown"); setBaselineMode("level"); setScaleMode("linear"); }} type="button">Drawdown</button>
         </div>
         <div className="trading-style" aria-label="Chart style">
           <button type="button" aria-pressed={!area} onClick={() => setArea(false)}>Line</button>
@@ -272,24 +180,24 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
         <button type="button" aria-pressed={comparisonMode === "aggregate"} onClick={() => setComparisonMode("aggregate")}>Combined</button>
       </div>
       <div className="comparison-basis" aria-label="Chart baseline">
-        <button type="button" aria-pressed={baselineMode === "level"} onClick={() => setBaselineMode("level")}>Level</button>
-        <button type="button" aria-pressed={baselineMode === "change"} title="Start every line at CHF 0 for the selected period" onClick={() => setBaselineMode("change")}>Change</button>
+        <button type="button" disabled={metric === "drawdown"} aria-pressed={baselineMode === "level"} onClick={() => setBaselineMode("level")}>Level</button>
+        <button type="button" disabled={metric === "drawdown"} aria-pressed={baselineMode === "change"} title="Start every line at CHF 0 for the selected period" onClick={() => setBaselineMode("change")}>Change</button>
       </div>
       <div className="scale-mode" aria-label="Chart scale">
-        <button type="button" aria-pressed={scaleMode === "linear"} onClick={() => setScaleMode("linear")}>Linear</button>
-        <button type="button" aria-pressed={scaleMode === "log"} title="Compress large magnitudes while retaining zero and negative values" onClick={() => setScaleMode("log")}>Log</button>
+        <button type="button" disabled={metric === "drawdown"} aria-pressed={scaleMode === "linear"} onClick={() => setScaleMode("linear")}>Linear</button>
+        <button type="button" disabled={metric === "drawdown"} aria-pressed={scaleMode === "log"} title="Compress large magnitudes while retaining zero and negative values" onClick={() => setScaleMode("log")}>Log</button>
       </div>
       <button className="trade-toggle" type="button" aria-pressed={showTrades} onClick={() => setShowTrades((current) => !current)}>Buy/Sell</button>
     </div> : null}
     <div className="trading-summary">
-      <div className="terminal-value-row"><strong>{formatChf(chartValue, { signed: metric === "pnl" })}</strong><span className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}<small>{range}</small></span></div>
-      <div className="trading-extremes"><span>{daily ? `${resolutionLabel} high` : "High"} <strong>{formatChf(high)}</strong></span><span>{daily ? `${resolutionLabel} low` : "Low"} <strong>{formatChf(low)}</strong></span></div>
+      <div className="terminal-value-row"><strong>{metric === "drawdown" ? formatPercent(chartValue) : formatChf(chartValue, { signed: metric === "pnl" })}</strong><span className={metric === "drawdown" ? "negative" : change >= 0 ? "positive" : "negative"}>{metric === "drawdown" ? "From peak" : formatChf(change, { signed: true })}<small>{range}</small></span></div>
+      <div className="trading-extremes">{metric === "drawdown" ? <><span>Peak <strong>{formatPercent(high)}</strong></span><span>Max drawdown <strong>{formatPercent(low)}</strong></span></> : <><span>{daily ? `${resolutionLabel} high` : "High"} <strong>{formatChf(high)}</strong></span><span>{daily ? `${resolutionLabel} low` : "Low"} <strong>{formatChf(low)}</strong></span></>}</div>
     </div>
-    {hasVisibleTrend ? <TradingPlot data={plottedData} daily={daily} metric={metric} baselineMode={baselineMode} scaleMode={scaleMode} area={area} overlays={plottedOverlays} showPortfolio={showPortfolio} showTrades={showTrades} transactions={chartTransactions} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{!showPortfolio && visibleSelectedSecurityIds.length === 0 ? "No chart series selected" : !showPortfolio ? "Holding history unavailable" : hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{!showPortfolio ? "Enable Portfolio or select holdings with available history." : hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
+    {hasVisibleTrend ? <TimeSeriesChart series={chartSeries} daily={daily} scaleMode={metric === "drawdown" ? "linear" : scaleMode} showZeroLine={metric === "drawdown" || baselineMode === "change"} title={showPortfolio ? `${metric === "drawdown" ? "Portfolio drawdown" : metric === "pnl" ? "Portfolio P&L" : "Portfolio value"}${baselineMode === "change" && metric !== "drawdown" ? " change" : ""}${scaleMode === "log" && metric !== "drawdown" ? " · Log scale" : ""}` : undefined} valueFormatter={valueFormatter} ariaLabel={`${daily ? "Daily" : "Intraday"} ${metric === "drawdown" ? "drawdown percentage" : metric === "pnl" ? "profit and loss" : "value"} chart for ${showPortfolio ? "the portfolio" : "selected holdings"}. Drag to pan and scroll to zoom.`} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{!showPortfolio && visibleSelectedSecurityIds.length === 0 ? "No chart series selected" : !showPortfolio ? "Holding history unavailable" : hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{!showPortfolio ? "Enable Portfolio or select holdings with available history." : hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
     <div className="trading-bottom-bar">
       <div className="range-tabs" aria-label="Chart time range">{ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} aria-pressed={item === range} onClick={() => setRange(item)} type="button">{item}</button>)}</div>
       <span>{resolutionLabel} intervals · UTC<span className="trading-gesture-hint"> · Drag to pan · Scroll to zoom</span></span>
     </div>
-    <footer className="trading-note"><span>{baselineMode === "change" ? "Each line starts at CHF 0 at its first valuation in this range" : selectedResolution === "intraday" ? "Intraday detail available for the latest 7 days" : `Last available valuation each ${selectedResolution}`}{scaleMode === "log" ? " · Symmetric log scale compresses large moves while retaining zero and losses" : ""}</span>{showTrades ? <span className="trade-key"><i className="buy-marker" /> Buy <i className="sell-marker" /> Sell</span> : null}{hasMissingSelectedHistory ? <span>Some holding history needs a history rebuild</span> : null}{liveEstimate !== null ? <span>Live estimate <strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong> · excluded from chart</span> : null}</footer>
+    <footer className="trading-note"><span>{metric === "drawdown" ? "Percentage below the highest portfolio value reached within this range" : baselineMode === "change" ? "Each line starts at CHF 0 at its first valuation in this range" : selectedResolution === "intraday" ? "Intraday detail available for the latest 7 days" : `Last available valuation each ${selectedResolution}`}{scaleMode === "log" && metric !== "drawdown" ? " · Symmetric log scale compresses large moves while retaining zero and losses" : ""}</span>{showTrades ? <span className="trade-key"><i className="buy-marker" /> Buy <i className="sell-marker" /> Sell</span> : null}{hasMissingSelectedHistory ? <span>Some holding history needs a history rebuild</span> : null}{liveEstimate !== null ? <span>Live estimate <strong>{formatChf(liveEstimate, { signed: metric === "pnl" })}</strong> · excluded from chart</span> : null}</footer>
   </section>;
 }

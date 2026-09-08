@@ -120,3 +120,17 @@ export function rebaseChartSeries(points: ChartPoint[]): ChartPoint[] {
     displayValue: index === 0 ? 0 : point.displayValue - baseline,
   }));
 }
+
+/** Returns the percentage below the highest value reached so far at each point. */
+export function drawdownChartSeries(points: ChartPoint[]): ChartPoint[] {
+  let peak = Number.NEGATIVE_INFINITY;
+  return points.map((point) => {
+    peak = Math.max(peak, point.displayValue);
+    return {
+      ...point,
+      // A zero/negative peak has no meaningful percentage drawdown. Keep it at
+      // zero until the portfolio has a positive valuation to compare against.
+      displayValue: peak > 0 ? ((point.displayValue - peak) / peak) * 100 : 0,
+    };
+  });
+}

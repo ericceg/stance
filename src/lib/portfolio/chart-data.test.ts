@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateChartSeries, indexChartPoints, prepareChartData, rebaseChartSeries, type ChartSnapshot } from "./chart-data";
+import { aggregateChartSeries, drawdownChartSeries, indexChartPoints, prepareChartData, rebaseChartSeries, type ChartSnapshot } from "./chart-data";
 
 function point(timestamp: string, value: number, source: ChartSnapshot["source"] = "INTRADAY_COMPARABLE"): ChartSnapshot {
   return { timestamp, totalPnlChf: value, portfolioValueChf: value + 1000, source, isLive: source === "LIVE_ESTIMATE" };
@@ -98,5 +98,29 @@ describe("security chart aggregation", () => {
     expect(rebaseChartSeries(first).map((item) => item.displayValue)).toEqual([0, 30]);
     expect(rebaseChartSeries(second).map((item) => item.displayValue)).toEqual([0, 25]);
     expect(rebaseChartSeries([])).toEqual([]);
+  });
+});
+
+describe("drawdown chart data", () => {
+  it("measures every point against its running peak", () => {
+    const points = prepareChartData([
+      point("2026-09-01T10:00:00Z", 0),
+      point("2026-09-02T10:00:00Z", 100),
+      point("2026-09-03T10:00:00Z", 50),
+      point("2026-09-04T10:00:00Z", 200),
+      point("2026-09-05T10:00:00Z", 150),
+    ], "ALL", "value", "day").fullData;
+
+    const drawdowns = drawdownChartSeries(points).map((item) => item.displayValue);
+    expect(drawdowns[0]).toBe(0);
+    expect(drawdowns[1]).toBe(0);
+    expect(drawdowns[2]).toBeCloseTo(-4.54545);
+    expect(drawdowns[3]).toBe(0);
+    expect(drawdowns[4]).toBeCloseTo(-4.16667);
+  });
+
+  it("does not divide by a non-positive peak", () => {
+    const points = prepareChartData([point("2026-09-01T10:00:00Z", -1100), point("2026-09-02T10:00:00Z", -1050)], "ALL", "value", "day").fullData;
+    expect(drawdownChartSeries(points).map((item) => item.displayValue)).toEqual([0, 0]);
   });
 });
