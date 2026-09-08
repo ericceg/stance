@@ -222,13 +222,14 @@ export async function getDashboardData() {
     list.push(snapshot);
     snapshotsBySecurity.set(snapshot.securityId, list);
   }
-  const securitySeries = positions.flatMap((position) => {
-    if (position.marketValueChf === null || position.totalPnlChf === null) return [];
+  const securitySeries = data.summary.positions.map((position) => {
     const recorded = snapshotsBySecurity.get(position.securityId) ?? [];
-    return [{
+    const isClosed = position.quantity <= 0;
+    return {
       securityId: position.securityId,
       ticker: position.security.ticker,
       name: position.security.name,
+      isClosed,
       snapshots: [
         ...recorded.map((snapshot) => ({
           timestamp: snapshot.timestamp.toISOString(),
@@ -237,15 +238,15 @@ export async function getDashboardData() {
           isLive: false,
           source: snapshot.source as SnapshotSource,
         })),
-        {
+        ...(!isClosed && position.marketValueChf !== null && position.totalPnlChf !== null ? [{
           timestamp: currentHistoryTimestamp,
           portfolioValueChf: position.marketValueChf,
           totalPnlChf: position.totalPnlChf,
           isLive: true,
           source: currentSource,
-        },
+        }] : []),
       ],
-    }];
+    };
   });
   const chartTransactions = data.accountingTransactions.flatMap((transaction) => (
     transaction.securityId && (transaction.type === "BUY" || transaction.type === "SELL")

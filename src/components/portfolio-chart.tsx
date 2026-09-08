@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Activity, ChartNoAxesCombined, Minus, Plus, RotateCcw } from "lucide-react";
 import { AreaSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
 import { formatChf } from "@/lib/format";
+import { readIncludeClosedChartPositions, subscribeToChartPreferences } from "@/lib/preferences";
 import { aggregateChartSeries, chartRanges as ranges, chartResolutions as resolutions, prepareChartData, indexChartPoints, type ChartRange as Range, type ChartResolution as Resolution, type ChartPoint, type ChartSnapshot } from "@/lib/portfolio/chart-data";
 
 // TradingView Lightweight Charts™
@@ -14,6 +15,7 @@ interface SecurityChartSeries {
   securityId: string;
   ticker: string;
   name: string;
+  isClosed: boolean;
   snapshots: ChartSnapshot[];
 }
 interface PortfolioChartProps {
@@ -183,15 +185,26 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
   const [showTrades, setShowTrades] = useState(false);
   const [selectedSecurityIds, setSelectedSecurityIds] = useState<string[]>([]);
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("individual");
+  const includeClosedPositions = useSyncExternalStore(
+    subscribeToChartPreferences,
+    readIncludeClosedChartPositions,
+    () => false,
+  );
+  const availableSecuritySeries = useMemo(
+    () => securitySeries.filter((series) => includeClosedPositions || !series.isClosed),
+    [includeClosedPositions, securitySeries],
+  );
+  const availableSecurityIds = useMemo(() => new Set(availableSecuritySeries.map((series) => series.securityId)), [availableSecuritySeries]);
+  const visibleSelectedSecurityIds = useMemo(() => selectedSecurityIds.filter((securityId) => availableSecurityIds.has(securityId)), [availableSecurityIds, selectedSecurityIds]);
   const { fullData: data, displayPoint, chartValue: portfolioChartValue, change: portfolioChange, low: portfolioLow, high: portfolioHigh, daily, resolution: selectedResolution } = useMemo(
     () => prepareChartData(snapshots, range, metric, resolution), [snapshots, range, metric, resolution],
   );
   const resolutionLabel = selectedResolution[0].toUpperCase() + selectedResolution.slice(1);
-  const selectedSeries = useMemo(() => securitySeries.filter((series) => selectedSecurityIds.includes(series.securityId)).map((series, index) => ({
+  const selectedSeries = useMemo(() => availableSecuritySeries.filter((series) => visibleSelectedSecurityIds.includes(series.securityId)).map((series, index) => ({
     ...series,
     color: overlayColors[index % overlayColors.length],
     data: prepareChartData(series.snapshots, range, metric, resolution).fullData,
-  })), [securitySeries, selectedSecurityIds, range, metric, resolution]);
+  })), [availableSecuritySeries, visibleSelectedSecurityIds, range, metric, resolution]);
   const plottableSeries = useMemo(() => selectedSeries.filter((series) => series.data.length >= 2), [selectedSeries]);
   const selectedAggregateData = useMemo(() => aggregateChartSeries(plottableSeries.map((series) => series.data)), [plottableSeries]);
   const overlays = useMemo<OverlaySeries[]>(() => {
@@ -201,7 +214,7 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
     return plottableSeries.map((series) => ({ id: series.securityId, label: series.ticker, color: series.color, data: series.data, securityIds: [series.securityId] }));
   }, [comparisonMode, plottableSeries, selectedAggregateData]);
   const hasMissingSelectedHistory = selectedSeries.some((series) => series.data.length < 2);
-  const allSecuritiesSelected = securitySeries.length > 0 && selectedSecurityIds.length === securitySeries.length;
+  const allSecuritiesSelected = availableSecuritySeries.length > 0 && visibleSelectedSecurityIds.length === availableSecuritySeries.length;
   const liveEstimate = displayPoint?.source === "LIVE_ESTIMATE" ? displayPoint.displayValue : null;
   const hasTrend = data.length >= 2 && recordedSnapshotCount >= 2;
   const selectedFirst = selectedAggregateData.at(0)?.displayValue ?? 0;
@@ -229,13 +242,13 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
         </div>
       </div>
     </header>
-    {securitySeries.length > 0 ? <div className="comparison-toolbar">
+    {availableSecuritySeries.length > 0 ? <div className="comparison-toolbar">
       <button className="portfolio-toggle" type="button" aria-pressed={showPortfolio} onClick={() => setShowPortfolio((current) => !current)}>Portfolio</button>
       <span>Holdings</span>
       <div className="holding-tabs" aria-label="Holdings shown on chart">
-        <button type="button" aria-pressed={selectedSecurityIds.length === 0} onClick={() => setSelectedSecurityIds([])}>None</button>
-        <button type="button" aria-pressed={allSecuritiesSelected} onClick={() => setSelectedSecurityIds(securitySeries.map((series) => series.securityId))}>All</button>
-        {securitySeries.map((series) => <button key={series.securityId} title={series.name} type="button" aria-pressed={selectedSecurityIds.includes(series.securityId)} onClick={() => setSelectedSecurityIds((current) => current.includes(series.securityId) ? current.filter((id) => id !== series.securityId) : [...current, series.securityId])}>{series.ticker}</button>)}
+        <button type="button" aria-pressed={visibleSelectedSecurityIds.length === 0} onClick={() => setSelectedSecurityIds([])}>None</button>
+        <button type="button" aria-pressed={allSecuritiesSelected} onClick={() => setSelectedSecurityIds(availableSecuritySeries.map((series) => series.securityId))}>All</button>
+        {availableSecuritySeries.map((series) => <button className={series.isClosed ? "is-closed" : ""} key={series.securityId} title={`${series.name}${series.isClosed ? " (closed)" : ""}`} type="button" aria-pressed={visibleSelectedSecurityIds.includes(series.securityId)} onClick={() => setSelectedSecurityIds((current) => current.includes(series.securityId) ? current.filter((id) => id !== series.securityId) : [...current, series.securityId])}>{series.ticker}{series.isClosed ? <small>Closed</small> : null}</button>)}
       </div>
       <div className="comparison-mode" aria-label="Holding chart mode">
         <button type="button" aria-pressed={comparisonMode === "individual"} onClick={() => setComparisonMode("individual")}>Separate</button>
@@ -247,7 +260,7 @@ export function PortfolioChart({ chartTransactions, hasTransactions, recordedSna
       <div className="terminal-value-row"><strong>{formatChf(chartValue, { signed: metric === "pnl" })}</strong><span className={change >= 0 ? "positive" : "negative"}>{formatChf(change, { signed: true })}<small>{range}</small></span></div>
       <div className="trading-extremes"><span>{daily ? `${resolutionLabel} high` : "High"} <strong>{formatChf(high)}</strong></span><span>{daily ? `${resolutionLabel} low` : "Low"} <strong>{formatChf(low)}</strong></span></div>
     </div>
-    {hasVisibleTrend ? <TradingPlot data={data} daily={daily} metric={metric} area={area} overlays={overlays} showPortfolio={showPortfolio} showTrades={showTrades} transactions={chartTransactions} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{!showPortfolio && selectedSecurityIds.length === 0 ? "No chart series selected" : !showPortfolio ? "Holding history unavailable" : hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{!showPortfolio ? "Enable Portfolio or select holdings with available history." : hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
+    {hasVisibleTrend ? <TradingPlot data={data} daily={daily} metric={metric} area={area} overlays={overlays} showPortfolio={showPortfolio} showTrades={showTrades} transactions={chartTransactions} /> : <div className="empty-mini chart-empty"><ChartNoAxesCombined aria-hidden="true" /><div><strong>{!showPortfolio && visibleSelectedSecurityIds.length === 0 ? "No chart series selected" : !showPortfolio ? "Holding history unavailable" : hasTransactions ? "More history needed for this range" : "No portfolio history yet"}</strong><p>{!showPortfolio ? "Enable Portfolio or select holdings with available history." : hasTransactions ? "Choose a longer range or refresh prices to add a valuation." : "Add or import a transaction to start tracking performance."}</p></div></div>}
     <div className="trading-bottom-bar">
       <div className="range-tabs" aria-label="Chart time range">{ranges.map((item) => <button className={item === range ? "is-active" : ""} key={item} aria-pressed={item === range} onClick={() => setRange(item)} type="button">{item}</button>)}</div>
       <span>{resolutionLabel} intervals · UTC<span className="trading-gesture-hint"> · Drag to pan · Scroll to zoom</span></span>

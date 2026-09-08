@@ -438,6 +438,9 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .portfolio-toggle, .holding-tabs button, .comparison-mode button, .trade-toggle { flex: 0 0 auto; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font-size: 9px; }
 .portfolio-toggle[aria-pressed="true"], .holding-tabs button[aria-pressed="true"], .comparison-mode button[aria-pressed="true"], .trade-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--chart) 45%, var(--line)); background: var(--accent-soft); color: var(--green); }
 .trade-toggle { margin-left: 2px; }
+.holding-tabs button { display: inline-flex; align-items: center; gap: 5px; }
+.holding-tabs button.is-closed { border-style: dashed; }
+.holding-tabs button small { color: inherit; font-size: 7px; letter-spacing: .06em; text-transform: uppercase; opacity: .72; }
 .comparison-mode { display: flex; gap: 3px; margin-left: auto; padding-left: 10px; border-left: 1px solid var(--line); }
 .trading-summary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 20px; padding: 13px 18px 8px; }
 .trading-summary .terminal-value-row { margin: 0; }
@@ -486,3 +489,21 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
   .trading-note { padding-inline: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .trading-navigation { transition: none; } }
+
+.settings-card { max-width: 900px; }
+.preference-list { margin-top: 18px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.preference-row { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 18px; background: var(--surface-soft); }
+.preference-copy { display: grid; gap: 6px; }
+.preference-copy strong { font-size: 11px; }
+.preference-copy p { max-width: 650px; margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.preference-switch { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.preference-switch > span { width: 38px; height: 22px; padding: 3px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-strong); transition: background 140ms, border-color 140ms; }
+.preference-switch i { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: transform 140ms, background 140ms; }
+.preference-switch input:checked + span { border-color: var(--green); background: var(--accent-soft); }
+.preference-switch input:checked + span i { transform: translateX(16px); background: var(--green); }
+.preference-switch input:focus-visible + span { outline: 2px solid var(--chart); outline-offset: 2px; }
+.preference-switch small { min-width: 18px; color: var(--muted); font-size: 9px; }
+
+@media (max-width: 560px) {
+  .preference-row { align-items: flex-start; gap: 18px; }
+}

@@ -17,6 +17,11 @@ const navigation = [
   { href: "/import", label: "Import", icon: ArrowDownToLine },
 ];
 
+const mobileNavigation = [
+  ...navigation,
+  { href: "/settings", label: "Settings", icon: Settings2 },
+];
+
 export function AppShell({
   children,
   active = "Overview",
@@ -51,7 +56,7 @@ export function AppShell({
             <TriangleAlert aria-hidden="true" />Data issues
             <small className={issueCount > 0 ? "issue-count has-issues" : "issue-count"}>{issueCount}</small>
           </Link>
-          <span className="nav-item is-disabled" aria-disabled="true"><Settings2 aria-hidden="true" />Settings<small>Soon</small></span>
+          <Link className={`nav-item ${active === "Settings" ? "is-active" : ""}`} href="/settings"><Settings2 aria-hidden="true" />Settings</Link>
           <div className="local-badge"><DatabaseZap aria-hidden="true" /><span><strong>Local data</strong><small>SQLite · private</small></span></div>
         </div>
       </aside>
@@ -62,7 +67,7 @@ export function AppShell({
           <Link className="primary-button" href="/transactions/new"><Plus aria-hidden="true" />Transaction</Link>
         </header>
         <nav className="mobile-nav" aria-label="Mobile navigation">
-          {navigation.map(({ href, label, icon: Icon }) => (
+          {mobileNavigation.map(({ href, label, icon: Icon }) => (
             <Link className={active === label ? "is-active" : ""} href={href} key={label}><Icon aria-hidden="true" />{label}</Link>
           ))}
         </nav>
