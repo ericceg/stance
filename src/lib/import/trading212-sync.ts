@@ -74,6 +74,7 @@ async function updatePositionQuote(
     name: position.instrument.name,
     tradingCurrency: position.instrument.currency,
     assetType: position.instrument.type,
+    authoritativeTradingCurrency: true,
   });
   const grossLocal = Math.abs(position.currentPrice * position.quantity);
   const localToAccount = position.instrument.currency === position.walletImpact.currency
@@ -187,6 +188,7 @@ export async function syncTrading212(): Promise<Trading212SyncReport> {
         name: order.order.instrument.name,
         tradingCurrency: order.order.instrument.currency,
         assetType: order.order.instrument.type,
+        authoritativeTradingCurrency: true,
       });
       const fxRateToChf = instrumentToAccount * accountToChfAtExecution;
       const feeChf = fill.walletImpact.taxes.reduce((total, tax) => {

@@ -153,6 +153,10 @@ export async function getDashboardData() {
     .map((position) => ({
       ...position,
       quote: position.quote ? { ...position.quote, quotedAt: position.quote.quotedAt.toISOString() } : null,
+      // A security can be identified by the same ISIN on several exchanges. The
+      // live quote identifies the actual listing being held, so it is the source
+      // of truth for allocation currency when one is available.
+      currency: position.quote?.currency ?? position.security.tradingCurrency,
       accountPositions: position.accountPositions.map((accountPosition) => ({
         ...accountPosition,
         brokerName: accountById.get(accountPosition.brokerAccountId)?.brokerName ?? "Unknown broker",
@@ -196,7 +200,7 @@ export async function getDashboardData() {
     if (position.marketValueChf === null) continue;
     const assetLabel = position.security.assetType === "ETF" ? "ETFs" : position.security.assetType === "STOCK" ? "Stocks" : "Other";
     assetAllocation.set(assetLabel, (assetAllocation.get(assetLabel) ?? 0) + position.marketValueChf);
-    currencyAllocation.set(position.security.tradingCurrency, (currencyAllocation.get(position.security.tradingCurrency) ?? 0) + position.marketValueChf);
+    currencyAllocation.set(position.currency, (currencyAllocation.get(position.currency) ?? 0) + position.marketValueChf);
     const exposureTotal = position.regionalExposures.reduce((total, exposure) => total + exposure.weight, 0);
     const scale = exposureTotal > 100 ? 100 / exposureTotal : 1;
     for (const exposure of position.regionalExposures) {

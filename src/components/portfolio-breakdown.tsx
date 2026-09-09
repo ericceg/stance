@@ -71,7 +71,7 @@ function allocationRows(positions: Position[], accountCash: AccountCash, dimensi
       const label = position.security.assetType === "ETF" ? "ETFs" : position.security.assetType === "STOCK" ? "Stocks" : "Other";
       grouped.set(label, (grouped.get(label) ?? 0) + value);
     }
-    if (dimension === "currency") grouped.set(position.security.tradingCurrency, (grouped.get(position.security.tradingCurrency) ?? 0) + value);
+    if (dimension === "currency") grouped.set(position.currency, (grouped.get(position.currency) ?? 0) + value);
     if (dimension === "region") {
       const exposureTotal = position.regionalExposures.reduce((total, exposure) => total + exposure.weight, 0);
       const scale = exposureTotal > 100 ? 100 / exposureTotal : 1;
@@ -141,7 +141,7 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
   const dataCoverage = positions.length === 0 ? 100 : (positions.filter((position) => position.marketValueChf !== null).length / positions.length) * 100;
   const bestContributor = [...positions].sort((left, right) => (right.totalPnlChf ?? -Infinity) - (left.totalPnlChf ?? -Infinity))[0];
   const worstContributor = [...positions].sort((left, right) => (left.totalPnlChf ?? Infinity) - (right.totalPnlChf ?? Infinity))[0];
-  const currencies = [...new Set(positions.map((position) => position.security.tradingCurrency))].sort();
+  const currencies = [...new Set(positions.map((position) => position.currency))].sort();
   const assets = [...new Set(positions.map((position) => position.security.assetType))].sort();
   const underlyingCoverage = useMemo(() => {
     const etfValue = positions.filter((position) => position.security.assetType === "ETF").reduce((total, position) => total + (position.marketValueChf ?? 0), 0);
@@ -154,7 +154,7 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
 
   const filteredPositions = useMemo(() => positions
     .filter((position) => assetFilter === "all" || position.security.assetType === assetFilter)
-    .filter((position) => currencyFilter === "all" || position.security.tradingCurrency === currencyFilter)
+    .filter((position) => currencyFilter === "all" || position.currency === currencyFilter)
     .filter((position) => `${position.security.name} ${position.security.ticker} ${position.brokerLabel}`.toLowerCase().includes(query.trim().toLowerCase()))
     .sort((left, right) => {
       const text = (position: Position) => position.security.name.toLowerCase();
@@ -255,7 +255,7 @@ export function PortfolioBreakdown({ accountCash, positions, summary }: { accoun
             <thead><tr>{([
               ["name", "Security"], ["value", "Market value"], ["cost", "Cost basis"], ["pnl", "Total P&L"], ["return", "Return"], ["today", "Today"], ["income", "Dividends"], ["fees", "Fees"], ["weight", "Weight"],
             ] as [SortKey, string][]).map(([key, label]) => <th aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"} className={key === "name" ? "" : "numeric"} key={key}><button onClick={() => changeSort(key)} type="button">{label}<SortIcon active={sort.key === key} direction={sort.direction} /></button></th>)}</tr></thead>
-            <tbody>{filteredPositions.map((position) => <tr key={position.securityId}><td className="security-cell"><Link href={`/holdings/${position.securityId}`}><span className="security-icon">{position.security.ticker.slice(0, 2)}</span><span><strong>{position.security.name}</strong><small>{position.security.ticker} · {position.security.assetType} · {position.security.tradingCurrency}<br />{position.brokerLabel}</small></span></Link></td><td className="numeric mono strong">{position.marketValueChf === null ? "—" : formatChf(position.marketValueChf)}</td><td className="numeric mono">{formatChf(position.costBasisChf)}</td><td className="numeric mono"><DetailValue value={position.totalPnlChf} /></td><td className="numeric mono"><DetailValue percent value={position.returnPercent} /></td><td className="numeric mono"><DetailValue value={position.todayPnlChf} /></td><td className="numeric mono">{formatChf(position.dividendIncomeChf)}</td><td className="numeric mono">{formatChf(position.feesChf)}</td><td className="numeric mono">{position.portfolioWeight === null ? "—" : formatPercent(position.portfolioWeight)}</td></tr>)}</tbody>
+            <tbody>{filteredPositions.map((position) => <tr key={position.securityId}><td className="security-cell"><Link href={`/holdings/${position.securityId}`}><span className="security-icon">{position.security.ticker.slice(0, 2)}</span><span><strong>{position.security.name}</strong><small>{position.security.ticker} · {position.security.assetType} · {position.currency}<br />{position.brokerLabel}</small></span></Link></td><td className="numeric mono strong">{position.marketValueChf === null ? "—" : formatChf(position.marketValueChf)}</td><td className="numeric mono">{formatChf(position.costBasisChf)}</td><td className="numeric mono"><DetailValue value={position.totalPnlChf} /></td><td className="numeric mono"><DetailValue percent value={position.returnPercent} /></td><td className="numeric mono"><DetailValue value={position.todayPnlChf} /></td><td className="numeric mono">{formatChf(position.dividendIncomeChf)}</td><td className="numeric mono">{formatChf(position.feesChf)}</td><td className="numeric mono">{position.portfolioWeight === null ? "—" : formatPercent(position.portfolioWeight)}</td></tr>)}</tbody>
           </table>
           {filteredPositions.length === 0 ? <div className="breakdown-empty">No positions match these filters.</div> : null}
         </div>
