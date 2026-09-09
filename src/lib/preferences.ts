@@ -1,5 +1,5 @@
-export const includeClosedChartPositionsKey = "persport.includeClosedChartPositions";
-const preferencesChangedEvent = "persport-preferences-changed";
+export const includeClosedChartPositionsKey = "stance.includeClosedChartPositions";
+const preferencesChangedEvent = "stance-preferences-changed";
 
 export function readIncludeClosedChartPositions() {
   return window.localStorage.getItem(includeClosedChartPositionsKey) === "true";

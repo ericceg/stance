@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PersPort — Portfolio tracker",
+  title: "Stance — Portfolio tracker",
   description: "A private, CHF-first investment portfolio tracker.",
 };
 

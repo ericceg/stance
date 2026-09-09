@@ -39,7 +39,7 @@ const yahooHistorySchema = z.object({
 async function fetchYahooJson(url: URL): Promise<unknown> {
   const response = await fetch(url, {
     cache: "no-store",
-    headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 PersPort/0.1" },
+    headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 Stance/0.1" },
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`Yahoo Finance returned HTTP ${response.status}.`);

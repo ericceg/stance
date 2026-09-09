@@ -1,4 +1,4 @@
-# PersPort workspace design
+# Stance workspace design
 
 The redesign uses a neutral canvas, solid surfaces, and restrained teal accents. The shared `AppShell` owns navigation, page titles, reporting context, and the workspace footer on every route.
 

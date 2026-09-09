@@ -1,16 +1,16 @@
-# PersPort
+# Stance
 
 Local-first portfolio tracking for investors who want to understand their holdings without handing their financial history to another service.
 
-PersPort turns broker transactions into a clear portfolio ledger, with CHF reporting, historical performance, allocation views, and data-quality checks. It runs on your machine: your database, broker credentials, and imported statements stay there.
+Stance turns broker transactions into a clear portfolio ledger, with CHF reporting, historical performance, allocation views, and data-quality checks. It runs on your machine: your database, broker credentials, and imported statements stay there.
 
-> PersPort is an early-stage personal project, under active development. It is not investment, tax, or financial advice.
+> Stance is an early-stage personal project, under active development. It is not investment, tax, or financial advice.
 
 ## Why I Made This
 
 I wanted a portfolio tracker that is useful without asking me to upload my complete financial history to a third party. Existing tools often hide the underlying ledger, make broker imports opaque, or treat a portfolio primarily as a trading surface.
 
-PersPort is built around a simpler idea: keep the data local, make the accounting inspectable, and let the portfolio history follow from the transactions.
+Stance is built around a simpler idea: keep the data local, make the accounting inspectable, and let the portfolio history follow from the transactions.
 
 ## What It Does
 
@@ -31,7 +31,7 @@ PersPort is built around a simpler idea: keep the data local, make the accountin
 - The included sample portfolio is entirely fictional.
 - No telemetry, account, or hosted backend is required for local development.
 
-PersPort is intended for one trusted local user. It has no authentication or multi-user tenancy, so do not expose a running instance to the public internet.
+Stance is intended for one trusted local user. It has no authentication or multi-user tenancy, so do not expose a running instance to the public internet.
 
 ## Quick Start
 
@@ -43,8 +43,8 @@ PersPort is intended for one trusted local user. It has no authentication or mul
 ### Run locally
 
 ```bash
-git clone https://github.com/ericceg/PersPort.git
-cd PersPort
+git clone https://github.com/ericceg/Stance.git
+cd Stance
 npm install
 cp .env.example .env
 npm run db:setup
@@ -67,9 +67,9 @@ npm run db:studio # browse the local database
 
 ### DEGIRO
 
-Export a **Transaction statement** and/or **Account statement** CSV from DEGIRO's Inbox. In PersPort, open **Import**, select the appropriate account and file, review the preview, and import it. Trade-settlement cash rows are ignored to avoid double counting, and stable row fingerprints keep repeated or overlapping imports safe.
+Export a **Transaction statement** and/or **Account statement** CSV from DEGIRO's Inbox. In Stance, open **Import**, select the appropriate account and file, review the preview, and import it. Trade-settlement cash rows are ignored to avoid double counting, and stable row fingerprints keep repeated or overlapping imports safe.
 
-PersPort looks up current quotes for open DEGIRO positions by ISIN through Yahoo Finance. It uses Frankfurter for current and historical CHF conversion.
+Stance looks up current quotes for open DEGIRO positions by ISIN through Yahoo Finance. It uses Frankfurter for current and historical CHF conversion.
 
 ### Trading 212
 
@@ -85,7 +85,7 @@ Restart the development server, then select **Sync now** on the Import page. Syn
 
 ## How It Works
 
-Positions are derived from the transaction ledger in time order; they are never stored as an independent source of truth. PersPort uses weighted-average cost basis: purchase fees increase cost basis, while sale fees reduce realized P&L. Invalid rows, including oversells, are excluded from calculations and shown as data issues instead of being silently corrected.
+Positions are derived from the transaction ledger in time order; they are never stored as an independent source of truth. Stance uses weighted-average cost basis: purchase fees increase cost basis, while sale fees reduce realized P&L. Invalid rows, including oversells, are excluded from calculations and shown as data issues instead of being silently corrected.
 
 The app uses Next.js, TypeScript, Prisma, and SQLite. Portfolio accounting and import logic are kept separate from the UI and external provider adapters, so the local persistence layer and data providers can evolve independently.
 
@@ -123,4 +123,4 @@ Issues and pull requests are welcome, especially for broker import edge cases, a
 
 ## License
 
-No license has been selected yet. Until one is added, the source is visible but no reuse rights are granted.
+MIT. See [LICENSE](LICENSE).

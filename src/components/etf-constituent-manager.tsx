@@ -30,7 +30,7 @@ export function EtfConstituentManager({ positions }: { positions: Position[] }) 
 
   return <section className="panel constituent-data-panel">
     <div className="section-heading constituent-data-heading"><div><p>ETF constituents</p><h2>Stock look-through data</h2></div><form action={refreshAction}><button className="secondary-button" disabled={refreshPending} type="submit">{refreshPending ? <LoaderCircle className="spin" /> : <RefreshCw />}Refresh automatically</button></form></div>
-    <div className="constituent-data-copy">PersPort fetches issuer holdings by default for supported ETFs. Paste a factsheet or issuer export below only when a fund is unsupported, or to keep a manual override.</div>
+    <div className="constituent-data-copy">Stance fetches issuer holdings by default for supported ETFs. Paste a factsheet or issuer export below only when a fund is unsupported, or to keep a manual override.</div>
     <Result state={refreshState} />
     <form action={action} className="constituent-editor" key={`${selectedId}-${selected?.underlyingHoldings[0]?.updatedAt ?? "empty"}`}>
       <input name="securityId" type="hidden" value={selectedId} />

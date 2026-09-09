@@ -21,7 +21,7 @@ export async function resolveAutomaticUnderlyingHoldings(security: Pick<Security
   const isin = security.isin?.toUpperCase();
   const sourceUrl = isin ? vanguardFunds[isin] : undefined;
   if (!sourceUrl) return null;
-  const response = await fetch(sourceUrl, { headers: { "User-Agent": "PersPort/1.0 ETF holdings refresh" }, signal: AbortSignal.timeout(20_000) });
+  const response = await fetch(sourceUrl, { headers: { "User-Agent": "Stance/1.0 ETF holdings refresh" }, signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`Vanguard returned HTTP ${response.status}.`);
   const parsed = parseVanguardUnderlyingHoldings(await response.text());
   return parsed ? { ...parsed, source: "VANGUARD", sourceUrl } : null;

@@ -46,6 +46,23 @@ const transactions: SeedTransaction[] = [
   { id: "tx_degiro_fee", accountId: ids.degiro, type: "FEE", timestamp: "2026-07-01T08:00:00Z", currency: "EUR", fxRate: 0.95, total: 12, notes: "Fictional connectivity fee" },
 ];
 
+function deterministicUnit(index: number) {
+  let value = (index + 1) * 2_654_435_761;
+  value ^= value >>> 16;
+  value = Math.imul(value, 2_246_822_519);
+  value ^= value >>> 13;
+  value = Math.imul(value, 3_266_489_917);
+  value ^= value >>> 16;
+  return (value >>> 0) / 4_294_967_296;
+}
+
+function dailyMarketReturn(index: number) {
+  const ordinaryMove = (deterministicUnit(index) - 0.5) * 0.014;
+  const openingMove = (deterministicUnit(index + 401) - 0.5) * 0.004;
+  const shocks: Record<number, number> = { 17: -0.018, 18: -0.011, 46: 0.014, 74: -0.016, 96: 0.012 };
+  return ordinaryMove + openingMove + (shocks[index] ?? 0) + 0.00035;
+}
+
 async function main() {
   await prisma.securitySnapshot.deleteMany();
   await prisma.portfolioSnapshot.deleteMany();
@@ -179,14 +196,17 @@ async function main() {
   const snapshotEnd = new Date("2026-08-31T18:00:00Z");
   const snapshots = [];
   const securitySnapshots = [];
+  const levels = [1];
+  for (let day = 1; day <= 120; day += 1) levels.push(levels[day - 1] * (1 + dailyMarketReturn(day)));
+  const finalLevel = levels.at(-1) ?? 1;
   for (let daysAgo = 120; daysAgo >= 0; daysAgo -= 1) {
-    const progress = (120 - daysAgo) / 120;
-    const wave = Math.sin(progress * Math.PI * 8) * 420 + Math.cos(progress * Math.PI * 3) * 160;
+    const day = 120 - daysAgo;
+    const progress = day / 120;
     const timestamp = new Date(snapshotEnd);
     timestamp.setUTCDate(snapshotEnd.getUTCDate() - daysAgo);
     const portfolioValueChf = daysAgo === 0
       ? summary.portfolioValueChf
-      : summary.portfolioValueChf - (1 - progress) * 3_800 + wave;
+      : summary.portfolioValueChf * (levels[day] / finalLevel);
     snapshots.push({
       timestamp,
       portfolioValueChf,
@@ -197,12 +217,13 @@ async function main() {
     });
     for (const [index, position] of summary.positions.entries()) {
       if (position.marketValueChf === null || position.totalPnlChf === null) continue;
-      const positionWave = Math.sin(progress * Math.PI * (5 + index) + index) * position.marketValueChf * 0.025;
+      const positionLevel = levels[day] * (1 + (deterministicUnit(day + index * 73) - 0.5) * 0.006);
+      const normalizedPositionLevel = positionLevel / finalLevel;
       securitySnapshots.push({
         securityId: position.securityId,
         timestamp,
-        marketValueChf: Math.max(0, position.marketValueChf * (0.9 + progress * 0.1) + positionWave),
-        totalPnlChf: position.totalPnlChf - (1 - progress) * position.marketValueChf * 0.08 + positionWave,
+        marketValueChf: Math.max(0, position.marketValueChf * normalizedPositionLevel),
+        totalPnlChf: position.totalPnlChf - (1 - progress) * position.marketValueChf * 0.08 + position.marketValueChf * (normalizedPositionLevel - 1),
       });
     }
   }

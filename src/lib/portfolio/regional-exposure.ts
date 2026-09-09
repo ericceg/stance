@@ -52,7 +52,7 @@ const isinRegion: Record<string, PortfolioRegion> = {
 
 async function fetchVanguardExposure(url: string): Promise<AutomaticExposure | null> {
   const response = await fetch(url, {
-    headers: { "User-Agent": "PersPort/1.0 regional-exposure refresh" },
+    headers: { "User-Agent": "Stance/1.0 regional-exposure refresh" },
     signal: AbortSignal.timeout(12_000),
   });
   if (!response.ok) throw new Error(`Vanguard returned HTTP ${response.status}.`);
@@ -62,7 +62,7 @@ async function fetchVanguardExposure(url: string): Promise<AutomaticExposure | n
 
 async function fetchIsharesExposure(url: string): Promise<AutomaticExposure | null> {
   const response = await fetch(url, {
-    headers: { "User-Agent": "PersPort/1.0 regional-exposure refresh" },
+    headers: { "User-Agent": "Stance/1.0 regional-exposure refresh" },
     signal: AbortSignal.timeout(12_000),
   });
   if (!response.ok) throw new Error(`iShares returned HTTP ${response.status}.`);

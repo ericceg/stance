@@ -46,7 +46,7 @@ export function AppShell({
       <aside className="sidebar">
         <Link className="brand" href="/">
           <span className="brand-mark"><ChartPie aria-hidden="true" /></span>
-          <span><strong>PersPort</strong><small>Investment workspace</small></span>
+          <span><strong>Stance</strong><small>Investment workspace</small></span>
         </Link>
 
         <div className="workspace-label">Personal workspace<span>CHF</span></div>
@@ -78,7 +78,7 @@ export function AppShell({
             <Link className={active === label ? "is-active" : ""} aria-current={active === label ? "page" : undefined} href={href} key={label}><Icon aria-hidden="true" />{label}</Link>
           ))}
         </nav>
-        <div className="page-content"><div className="page-heading"><div><p>{eyebrow}</p><h1>{title}</h1></div><span className="reporting-badge">Reporting in <strong>CHF</strong></span></div>{children}<footer className="workspace-footer"><span>PersPort · Personal investing, clearly.</span><Link href="/settings">Workspace settings</Link></footer></div>
+        <div className="page-content"><div className="page-heading"><div><p>{eyebrow}</p><h1>{title}</h1></div><span className="reporting-badge">Reporting in <strong>CHF</strong></span></div>{children}<footer className="workspace-footer"><span>Stance · Personal investing, clearly.</span><Link href="/settings">Workspace settings</Link></footer></div>
       </main>
     </div>
   );

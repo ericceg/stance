@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ securityId: string }> }): Promise<Metadata> {
   const { securityId } = await params;
   const detail = await getPositionDetail(securityId);
-  if (!detail) return { title: "Holding not found — PersPort" };
-  return { title: `${detail.position.security.name} — PersPort`, description: `Portfolio position for ${detail.position.security.ticker}.` };
+  if (!detail) return { title: "Holding not found — Stance" };
+  return { title: `${detail.position.security.name} — Stance`, description: `Portfolio position for ${detail.position.security.ticker}.` };
 }
 
 export default async function HoldingDetailPage({ params }: { params: Promise<{ securityId: string }> }) {
