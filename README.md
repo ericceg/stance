@@ -1,8 +1,8 @@
 # Stance
 
-Local-first portfolio tracking for investors who want to understand their holdings without handing their financial history to another service.
+Local portfolio tracker for investors who want to understand their holdings accross brokers and currencies.
 
-Stance turns broker transactions into a clear portfolio ledger, with CHF reporting, historical performance, allocation views, and data-quality checks. It runs on your machine: your database, broker credentials, and imported statements stay there.
+Stance turns broker transactions into a clear central portfolio, with CHF reporting, historical performance, allocation views, and data-quality checks. It runs on your machine: your database, broker credentials, and imported statements stay there.
 
 > Stance is an early-stage personal project, under active development. It is not investment, tax, or financial advice.
 
@@ -53,8 +53,8 @@ Stance is intended for one trusted local user. It has no authentication or multi
 ### Run locally
 
 ```bash
-git clone https://github.com/ericceg/Stance.git
-cd Stance
+git clone https://github.com/ericceg/stance.git
+cd stance
 npm install
 cp .env.example .env
 npm run db:setup
