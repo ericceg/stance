@@ -16,7 +16,6 @@ export async function refreshOpenPositionQuotes(): Promise<MarketDataRefreshRepo
   const targets = portfolio.summary.positions.filter((position) => (
     position.quantity > 1e-9
     && position.quote?.provider !== "TRADING212"
-    && (position.quote === null || position.quote.provider === provider.name)
   ));
   const results = await Promise.allSettled(targets.map(async (position) => {
     const resolved = await provider.getResolvedQuote(position.security);
