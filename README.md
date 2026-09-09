@@ -6,6 +6,16 @@ Stance turns broker transactions into a clear portfolio ledger, with CHF reporti
 
 > Stance is an early-stage personal project, under active development. It is not investment, tax, or financial advice.
 
+## A Quick Look
+
+All screenshots below use the included fictional sample portfolio.
+
+![Stance overview showing portfolio value, allocation, and performance](docs/screenshots/overview.png)
+
+![Stance performance view showing portfolio and holding P&L over time](docs/screenshots/performance.png)
+
+![Stance allocation explorer showing holdings and contribution analysis](docs/screenshots/breakdown.png)
+
 ## Why I Made This
 
 I wanted a portfolio tracker that is useful without asking me to upload my complete financial history to a third party. Existing tools often hide the underlying ledger, make broker imports opaque, or treat a portfolio primarily as a trading surface.
