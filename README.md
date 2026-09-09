@@ -1,145 +1,126 @@
 # PersPort
 
-PersPort is a lightweight, single-user investment portfolio tracker with CHF as its reporting currency. It is local-first: SQLite holds the portfolio ledger, broker credentials remain server-side, and imported statements are parsed without being retained on disk.
+Local-first portfolio tracking for investors who want to understand their holdings without handing their financial history to another service.
 
-> All repository data is fictional. Local databases, environment files, uploaded CSVs, account identifiers, and broker credentials are excluded from Git.
+PersPort turns broker transactions into a clear portfolio ledger, with CHF reporting, historical performance, allocation views, and data-quality checks. It runs on your machine: your database, broker credentials, and imported statements stay there.
 
-## What works
+> PersPort is an early-stage personal project, under active development. It is not investment, tax, or financial advice.
 
-- Transaction-led portfolio accounting for buys, sells, dividends, deposits, withdrawals, and fees
-- Weighted-average cost basis, partial and full sells, realized/unrealized P&L, cash, and contribution-aware absolute P&L
-- Original-currency and stored CHF values on every transaction
-- Automatic current and historical CHF conversion through Frankfurter, with no FX-rate entry
-- Aggregated holdings with broker-level breakdowns
-- Sortable holdings table, allocation views, seeded snapshot chart, and responsive dark-mode UI
-- Regional allocation with ETF look-through, automatic issuer refresh, visible unclassified exposure, and manual overrides
-- Position detail pages with identification, pricing, broker allocation, and transaction history
-- Manual transaction creation and deletion with server-side validation
-- Data-quality checks for missing prices, FX rates, ISINs, invalid transactions, and oversold positions
-- Replaceable, read-only `BrokerProvider` and `MarketDataProvider` contracts
-- Read-only Trading 212 sync for order fills, dividends, cash movements, open positions, and current prices
-- DEGIRO Transaction and Account statement CSV preview/import with localized-number support
-- Automatic Yahoo Finance quote resolution by ISIN for open DEGIRO positions
-- Idempotent broker ingestion using external IDs and stable row fingerprints
-- Unit tests covering the important accounting paths
+## Why I Made This
 
-## Architecture
+I wanted a portfolio tracker that is useful without asking me to upload my complete financial history to a third party. Existing tools often hide the underlying ledger, make broker imports opaque, or treat a portfolio primarily as a trading surface.
 
-The App Router renders portfolio reads on the server. UI mutations use Server Actions, so the browser never receives database access or secrets. Prisma is the typed persistence boundary; SQLite is used for the local version and can later be replaced by PostgreSQL without changing the accounting engine.
+PersPort is built around a simpler idea: keep the data local, make the accounting inspectable, and let the portfolio history follow from the transactions.
 
-```text
-Prisma / SQLite
-      │
-      ▼
-portfolio service ── provider interfaces (broker / market data)
-      │
-      ▼
-pure accounting engine
-      │
-      ▼
-server-rendered routes + focused client charts/tables/forms
-```
+## What It Does
 
-Positions are never manually stored. They are derived in timestamp order from transactions. A buy adds its fee to cost basis; a sell releases weighted-average cost and realizes the difference after fees. Deposits and withdrawals change gross contributions and cash; any associated fees reduce cash and realized P&L. Materially invalid rows, such as an oversell, are excluded and surfaced as a data issue instead of being silently guessed.
+- Tracks buys, sells, dividends, deposits, withdrawals, interest, and fees
+- Calculates cash, cost basis, realized and unrealized P&L, and contribution-aware absolute P&L
+- Reports everything in CHF while retaining each transaction's original currency
+- Imports DEGIRO transaction and account-statement CSVs
+- Syncs Trading 212 fills, dividends, cash movements, positions, and current prices through its read-only API
+- Shows holdings, broker splits, allocation, performance charts, fees, and portfolio data issues
+- Builds regional exposure from ETF look-through data, issuer sources, conservative classification, and manual overrides
+- Uses duplicate-safe imports, so overlapping statement exports or repeated syncs are safe
 
-Manual ledger changes invalidate portfolio and security chart points from the changed transaction onward, within the same database transaction. Earlier history is retained; the next broker import reconstructs the affected history. Clearing the ledger also clears both kinds of chart history.
+## Privacy and Safety
 
-## Database schema
+- Your SQLite database lives locally and is ignored by Git.
+- Imported CSVs are previewed and parsed without being retained on disk.
+- Trading 212 keys stay server-side in your local environment; the integration has no trade-placement capability.
+- The included sample portfolio is entirely fictional.
+- No telemetry, account, or hosted backend is required for local development.
 
-The complete schema is in [`prisma/schema.prisma`](./prisma/schema.prisma).
+PersPort is intended for one trusted local user. It has no authentication or multi-user tenancy, so do not expose a running instance to the public internet.
 
-| Model | Purpose |
-| --- | --- |
-| `Security` | Canonical security identity, preferably by ISIN, plus exchange/currency and editable provider ticker fields |
-| `SecurityAlias` | Broker symbols and source IDs mapped to the canonical security |
-| `BrokerAccount` | Broker/account identity and base currency |
-| `Transaction` | Immutable accounting inputs with local and CHF values, import source, and duplicate-detection fields |
-| `PriceQuote` | Last known mock/current price, previous close, CHF rate, provider, and timestamp |
-| `SecurityRegionalExposure` | Dated regional weights per security, including their automatic or manual source |
-| `PortfolioSnapshot` | Periodic CHF portfolio value, cost, cash, and P&L totals |
+## Quick Start
 
-Transactions have indexes for account/security timelines. Imported records can be deduplicated by broker/source external ID or by an importer-generated fingerprint.
+### Requirements
 
-## Project structure
+- Node.js 20+
+- npm
 
-```text
-prisma/
-  migrations/             committed database migrations
-  schema.prisma           relational data model
-  seed.ts                 fictional accounts, trades, quotes, and snapshots
-scripts/
-  ensure-db.mjs           creates the ignored local SQLite file when absent
-src/
-  app/                    App Router pages and transaction Server Actions
-  components/             dashboard, charts, tables, shell, and forms
-  lib/
-    portfolio/            pure accounting, types, service, and tests
-    import/               DEGIRO parsing/import and Trading 212 synchronization
-    providers/            replaceable broker and market-data contracts
-    db.ts                 server-only Prisma client
-```
-
-## Run locally
-
-Requirements: Node.js 20+ and npm.
+### Run locally
 
 ```bash
+git clone https://github.com/ericceg/PersPort.git
+cd PersPort
 npm install
 cp .env.example .env
 npm run db:setup
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). `db:setup` creates the ignored database, applies committed migrations, and loads fictional sample data. Re-running `npm run db:seed` resets the local database to that fictional dataset.
+Open [http://localhost:3000](http://localhost:3000). The setup command creates a local SQLite database, applies the committed migrations, and loads a fictional sample portfolio.
 
 Useful commands:
 
 ```bash
-npm test          # accounting unit tests
+npm test          # unit tests
 npm run lint      # ESLint
 npm run build     # production build
-npm run check     # lint + tests + build
-npm run db:studio # inspect the local data
+npm run check     # lint, tests, and production build
+npm run db:studio # browse the local database
 ```
 
-## Environment and repository safety
+## Importing Your Portfolio
 
-Copy `.env.example` to `.env`. Never put a real key in the example file or in a `NEXT_PUBLIC_*` variable. Trading 212 credentials remain server-side and the provider contract intentionally has no trade-placement method.
+### DEGIRO
 
-### Trading 212 sync
+Export a **Transaction statement** and/or **Account statement** CSV from DEGIRO's Inbox. In PersPort, open **Import**, select the appropriate account and file, review the preview, and import it. Trade-settlement cash rows are ignored to avoid double counting, and stable row fingerprints keep repeated or overlapping imports safe.
 
-1. In Trading 212, open **Settings → API (Beta)** and generate a key pair with read access to account data, portfolio, and history. Do not grant order permissions to PersPort.
-2. Put the pair in `.env` as `TRADING212_API_KEY` and `TRADING212_API_SECRET`. Set `TRADING212_ENVIRONMENT` to `live` or `demo`.
-3. Restart the development server, open **Import**, and select **Sync now**. PersPort retrieves current and transaction-date CHF rates automatically.
+PersPort looks up current quotes for open DEGIRO positions by ISIN through Yahoo Finance. It uses Frankfurter for current and historical CHF conversion.
 
-The sync imports completed trade fills, paid dividends, deposits, withdrawals, account fees, and interest. Internal transfers and unsupported corporate-action fills are deliberately skipped. Open positions also refresh Trading 212-backed current prices. Re-running sync is safe because imported records retain their Trading 212 references.
+### Trading 212
 
-### DEGIRO import
+Create a read-only Trading 212 API key with access to account data, portfolio, and history. Do not grant order permissions. Add the credentials to your local `.env`:
 
-Export either report from DEGIRO’s Inbox in CSV format:
+```bash
+TRADING212_API_KEY=
+TRADING212_API_SECRET=
+TRADING212_ENVIRONMENT=live # or demo
+```
 
-- **Transaction statement** for buys, sells, execution prices, and transaction fees
-- **Account statement** for deposits, withdrawals, dividends, interest, withholding tax, and other fees
+Restart the development server, then select **Sync now** on the Import page. Syncing imports completed fills, dividends, cash movements, interest, fees, open positions, and current prices. Internal transfers and unsupported corporate actions are skipped deliberately.
 
-Open **Import**, choose the DEGIRO account and CSV, review the local preview, then import. Trade-settlement cash rows in Account statements are ignored to avoid double-counting trades. Transaction statements that contain CHF values keep their row-specific broker conversion; all missing conversions are retrieved automatically for each transaction date. Open positions are matched to Yahoo Finance by ISIN and receive current prices in the quote currency with automatic CHF conversion. The uploaded file is never saved, and stable fingerprints make overlapping exports safe to import.
+## How It Works
 
-Broker imports also refresh regional exposure. PersPort uses official issuer look-through data for supported broad-market funds, fund mandates for unambiguous regional ETFs, and conservative ISIN classification for direct securities. Manual weights entered on **Breakdown** take precedence over automatic refreshes; unsupported or incomplete exposure remains visibly unclassified.
+Positions are derived from the transaction ledger in time order; they are never stored as an independent source of truth. PersPort uses weighted-average cost basis: purchase fees increase cost basis, while sale fees reduce realized P&L. Invalid rows, including oversells, are excluded from calculations and shown as data issues instead of being silently corrected.
 
-### Automatic FX conversion
+The app uses Next.js, TypeScript, Prisma, and SQLite. Portfolio accounting and import logic are kept separate from the UI and external provider adapters, so the local persistence layer and data providers can evolve independently.
 
-PersPort uses the public [Frankfurter](https://frankfurter.dev/) API for current and historical reference rates; it requires no API key. CHF transactions use a fixed rate of 1. If the service or a currency/date pair is temporarily unavailable, no transactions are imported or saved and the operation can be retried—there is no manual-rate fallback.
+```text
+SQLite / Prisma
+      │
+      ▼
+portfolio ledger ── broker + market-data providers
+      │
+      ▼
+accounting and history reconstruction
+      │
+      ▼
+Next.js interface
+```
 
-The `.gitignore` excludes `.env`, SQLite files, private/upload directories, portfolio CSV exports, logs, and build output. Before publishing screenshots, reset with `npm run db:seed` so only fictional data is visible.
+## Development Notes
 
-## Next milestone
+- Copy `.env.example` to `.env`; never commit real credentials or use `NEXT_PUBLIC_` for them.
+- `npm run db:seed` resets the local database to the fictional sample dataset.
+- SQLite is designed for local use. A hosted deployment needs durable, authenticated infrastructure (for example PostgreSQL); serverless local files are not persistent.
+- External market-data and issuer endpoints can be temporarily unavailable. When an FX rate needed for an import is missing, the import is not saved and can be retried.
 
-The next work is security/ticker editing and merging, transaction editing, historical security charts, and time-/money-weighted returns.
+## Roadmap
 
-## Assumptions
+- Security and ticker editing/merging
+- Transaction editing
+- Historical security charts
+- Time- and money-weighted returns
+- A clear path from single-user local use to a safely hosted deployment
 
-- One trusted local user; no authentication or tenancy
-- CHF is the only reporting currency
-- Weighted average cost is used for position accounting
-- Transaction CHF values preserve the broker-provided conversion when available and otherwise use the automatic reference rate for the transaction date; current valuations use the latest automatic rate
-- Dividends are included in realized P&L, while deposits and withdrawals are external cash flows
-- SQLite is for local use. A Vercel deployment should switch `DATABASE_URL` to PostgreSQL or another persistent hosted database because serverless local files are not durable
+## Contributing
+
+Issues and pull requests are welcome, especially for broker import edge cases, accounting tests, and documentation. Please include a focused description, keep fixture data fictional, and run `npm run check` before opening a pull request.
+
+## License
+
+No license has been selected yet. Until one is added, the source is visible but no reuse rights are granted.
