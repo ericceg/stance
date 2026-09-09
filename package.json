@@ -6,6 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "desktop:dev": "tauri dev",
+    "desktop:prepare": "node desktop/prepare.mjs",
+    "desktop:build": "tauri build",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -30,6 +33,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

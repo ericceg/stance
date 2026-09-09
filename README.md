@@ -63,6 +63,22 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). The setup command creates a local SQLite database, applies the committed migrations, and loads a fictional sample portfolio.
 
+### Run as a desktop app
+
+Install Node.js 22+ and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your operating system, then run:
+
+```bash
+npm run desktop:dev
+```
+
+This opens the same Next.js application in a native window, backed by the same source code. Development mode uses the normal local database and `.env` configuration. To create a native installer:
+
+```bash
+npm run desktop:build
+```
+
+Packaged desktop releases keep their SQLite database in the operating system's per-user application-data directory. Committed Prisma migrations are applied automatically when the desktop app starts. The browser and desktop targets therefore share all UI, accounting, import, and persistence code; only the desktop launcher and packaging live under `src-tauri/` and `desktop/`.
+
 Useful commands:
 
 ```bash

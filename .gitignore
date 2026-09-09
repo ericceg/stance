@@ -23,6 +23,9 @@
 
 # production
 /build
+/src-tauri/target
+/src-tauri/binaries/stance-node-*
+/src-tauri/gen/schemas
 
 # misc
 .DS_Store
