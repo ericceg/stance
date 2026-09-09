@@ -107,6 +107,28 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .mobile-nav { display: none; }
 .page-content { width: 100%; max-width: 1660px; margin: 0 auto; display: grid; gap: 18px; padding: clamp(20px, 2.5vw, 34px) clamp(18px, 3vw, 38px) 48px; }
 
+.currency-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding: 28px; border-radius: 16px; background: linear-gradient(125deg, color-mix(in srgb, var(--accent-soft) 72%, var(--surface-strong)), var(--surface-strong)); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.currency-hero > div:first-child { max-width: 750px; }
+.currency-hero p { margin: 0 0 9px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.currency-hero h2 { margin: 0; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.05em; line-height: 1.08; font-weight: 540; }
+.currency-hero > div:first-child > span { display: block; margin-top: 11px; color: var(--muted); font-size: 12px; }
+.currency-hero-value { display: grid; gap: 4px; flex: 0 0 auto; padding-left: 28px; border-left: 1px solid var(--line); text-align: right; }
+.currency-hero-value span, .currency-hero-value small { color: var(--muted); font-size: 11px; }
+.currency-hero-value strong { font: 540 clamp(22px, 2.5vw, 31px)/1 var(--font-geist-mono), monospace; letter-spacing: -.05em; }
+.currency-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.currency-kpis > div { display: grid; gap: 7px; min-height: 118px; padding: 17px 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); box-shadow: var(--shadow); }
+.currency-kpis span { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+.currency-kpis span svg { width: 15px; height: 15px; color: var(--accent); }
+.currency-kpis strong { font: 550 22px/1 var(--font-geist-mono), monospace; letter-spacing: -.04em; }
+.currency-kpis small { color: var(--muted); font-size: 11px; }
+.currency-chart-panel, .currency-table-panel { padding: 22px; }
+.currency-chart-panel .section-heading, .currency-table-panel .section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 15px; margin-bottom: 16px; }
+.currency-chart-panel .section-heading span, .currency-table-panel .section-heading > span { color: var(--muted); font-size: 11px; text-align: right; }
+.currency-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.currency-tabs button { min-height: 30px; padding: 0 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-soft); color: var(--muted); font-size: 11px; font-weight: 650; }
+.currency-tabs button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent-soft); color: var(--accent); }
+.currency-method { margin: -4px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+
 .quality-banner, .issue-banner { min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 9px 13px; border-radius: 10px; font-size: 13px; }
 .quality-banner { width: fit-content; color: var(--green); background: var(--accent-soft); }
 .quality-banner svg, .issue-banner > svg:first-child { width: 15px; height: 15px; flex: 0 0 auto; }
@@ -517,6 +539,12 @@ a.nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
 .trade-key .buy-marker { border-bottom: 7px solid #2f9d68; }
 .trade-key .sell-marker { border-top: 7px solid #d65c5c; }
 @media (max-width: 700px) {
+  .currency-hero { align-items: flex-start; flex-direction: column; padding: 21px; }
+  .currency-hero-value { width: 100%; padding: 15px 0 0; border-top: 1px solid var(--line); border-left: 0; text-align: left; }
+  .currency-kpis { grid-template-columns: 1fr; }
+  .currency-chart-panel, .currency-table-panel { padding: 18px; }
+  .currency-chart-panel .section-heading, .currency-table-panel .section-heading { align-items: flex-start; flex-direction: column; }
+  .currency-chart-panel .section-heading span, .currency-table-panel .section-heading > span { text-align: left; }
   .trading-toolbar { padding-inline: 12px; gap: 8px; flex-wrap: wrap; }
   .trading-toolbar-controls { gap: 8px; }
   .interval-tabs { padding-left: 8px; }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ArrowDownToLine,
   ChartPie,
+  Coins,
   ShieldCheck,
   Landmark,
   LayoutDashboard,
@@ -15,6 +16,7 @@ import {
 const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/breakdown", label: "Breakdown", icon: ChartPie },
+  { href: "/currencies", label: "Currencies", icon: Coins },
   { href: "/holdings", label: "Holdings", icon: WalletCards },
   { href: "/transactions", label: "Transactions", icon: Landmark },
   { href: "/fees", label: "Fees", icon: ReceiptText },
