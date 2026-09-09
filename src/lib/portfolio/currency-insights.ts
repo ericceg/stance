@@ -32,6 +32,15 @@ export async function getCurrencyInsights() {
     existing.weightedCostRate += localValue * costRate;
     byCurrency.set(currency, existing);
   }
+  // Cash is a currency exposure too. Including it makes the CHF row and every
+  // exposure percentage reconcile to the reported portfolio total.
+  if (Math.abs(data.summary.cashChf) > 0.005) {
+    const existing = byCurrency.get("CHF") ?? { marketValueChf: 0, localValue: 0, fxImpactChf: 0, weightedCostRate: 0 };
+    existing.marketValueChf += data.summary.cashChf;
+    existing.localValue += data.summary.cashChf;
+    existing.weightedCostRate += data.summary.cashChf;
+    byCurrency.set("CHF", existing);
+  }
 
   const exposure = [...byCurrency.entries()].map(([currency, values]) => ({
     currency,
@@ -68,5 +77,6 @@ export async function getCurrencyInsights() {
     history,
     totalForeignExposureChf: exposure.filter((item) => item.currency !== "CHF").reduce((total, item) => total + item.marketValueChf, 0),
     totalFxImpactChf: exposure.filter((item) => item.currency !== "CHF").reduce((total, item) => total + item.fxImpactChf, 0),
+    portfolioValueChf: data.summary.portfolioValueChf,
   };
 }
