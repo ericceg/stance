@@ -11,14 +11,16 @@ function fixedNumber(value: number, fractionDigits: number) {
 
 export function formatChf(value: number, options?: { signed?: boolean }) {
   const formatted = `CHF ${fixedNumber(value, 2)}`;
-  if (!options?.signed || Math.abs(value) < 0.005) return formatted;
-  return `${value > 0 ? "+" : "−"}${formatted}`;
+  if (Math.abs(value) < 0.005) return formatted;
+  if (value < 0) return `−${formatted}`;
+  return options?.signed ? `+${formatted}` : formatted;
 }
 
 export function formatPercent(value: number, options?: { signed?: boolean }) {
   const formatted = `${fixedNumber(value, 2)}%`;
-  if (!options?.signed || Math.abs(value) < 0.005) return formatted;
-  return `${value > 0 ? "+" : "−"}${formatted}`;
+  if (Math.abs(value) < 0.005) return formatted;
+  if (value < 0) return `−${formatted}`;
+  return options?.signed ? `+${formatted}` : formatted;
 }
 
 export function formatNumber(value: number, maximumFractionDigits = 4) {
@@ -28,7 +30,7 @@ export function formatNumber(value: number, maximumFractionDigits = 4) {
 }
 
 export function formatCurrency(value: number, currency: string) {
-  return `${currency} ${fixedNumber(value, 2)}`;
+  return `${value < -0.005 ? "−" : ""}${currency} ${fixedNumber(value, 2)}`;
 }
 
 export function formatDate(value: Date | string) {
