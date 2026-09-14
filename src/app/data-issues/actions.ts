@@ -9,12 +9,12 @@ export interface PriceRefreshState {
   message?: string;
 }
 
-export async function refreshPricesAction(): Promise<PriceRefreshState> {
+async function refreshPrices(recordSnapshot: boolean): Promise<PriceRefreshState> {
   try {
     const report = await refreshOpenPositionQuotes();
-    // Preserve each successful refresh as an intraday performance point. The
-    // chart keeps these alongside the daily reconstructed closing history.
-    const snapshot = report.updated > 0 ? await recordCurrentPortfolioSnapshot() : null;
+    const snapshot = recordSnapshot && report.updated > 0
+      ? await recordCurrentPortfolioSnapshot()
+      : null;
     revalidatePortfolioViews();
     if (report.warnings.length > 0) {
       return { error: `Refreshed ${report.updated} of ${report.attempted} prices. ${report.warnings[0]}` };
@@ -24,4 +24,14 @@ export async function refreshPricesAction(): Promise<PriceRefreshState> {
     console.error("Market price refresh failed", error);
     return { error: error instanceof Error ? error.message : "Market prices could not be refreshed." };
   }
+}
+
+export async function refreshPricesAction(): Promise<PriceRefreshState> {
+  // Preserve a user-requested refresh as an intraday performance point. The
+  // chart keeps it alongside the daily reconstructed closing history.
+  return refreshPrices(true);
+}
+
+export async function autoRefreshPricesAction(): Promise<PriceRefreshState> {
+  return refreshPrices(false);
 }

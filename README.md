@@ -26,6 +26,7 @@ Stance is built around a simpler idea: keep the data local, make the accounting 
 
 - Tracks buys, sells, dividends, deposits, withdrawals, interest, and fees
 - Calculates cash, cost basis, realized and unrealized P&L, and contribution-aware absolute P&L
+- Optionally refreshes supported market prices and the displayed P&L every minute while the overview is open
 - Reports everything in CHF while retaining each transaction's original currency
 - Imports DEGIRO transaction and account-statement CSVs
 - Syncs Trading 212 fills, dividends, cash movements, positions, and current prices through its read-only API

@@ -1,4 +1,5 @@
 export const includeClosedChartPositionsKey = "stance.includeClosedChartPositions";
+export const autoRefreshPricesKey = "stance.autoRefreshPrices";
 const preferencesChangedEvent = "stance-preferences-changed";
 
 export function readIncludeClosedChartPositions() {
@@ -10,6 +11,15 @@ export function writeIncludeClosedChartPositions(value: boolean) {
   window.dispatchEvent(new Event(preferencesChangedEvent));
 }
 
+export function readAutoRefreshPrices() {
+  return window.localStorage.getItem(autoRefreshPricesKey) === "true";
+}
+
+export function writeAutoRefreshPrices(value: boolean) {
+  window.localStorage.setItem(autoRefreshPricesKey, String(value));
+  window.dispatchEvent(new Event(preferencesChangedEvent));
+}
+
 export function subscribeToChartPreferences(onStoreChange: () => void) {
   window.addEventListener("storage", onStoreChange);
   window.addEventListener(preferencesChangedEvent, onStoreChange);
@@ -18,3 +28,5 @@ export function subscribeToChartPreferences(onStoreChange: () => void) {
     window.removeEventListener(preferencesChangedEvent, onStoreChange);
   };
 }
+
+export const subscribeToPricePreferences = subscribeToChartPreferences;

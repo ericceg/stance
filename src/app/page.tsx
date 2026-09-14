@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowUpRight, CircleCheck, Clock3, RefreshCw, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, CircleCheck, Clock3, TriangleAlert } from "lucide-react";
 import { AllocationChart } from "@/components/allocation-chart";
 import { AppShell } from "@/components/app-shell";
 import { HoldingsTable } from "@/components/holdings-table";
+import { LivePriceStatus } from "@/components/live-price-status";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { formatChf, formatPercent, toneForValue } from "@/lib/format";
 import { getDashboardData } from "@/lib/portfolio/service";
@@ -37,7 +38,7 @@ export default async function Home() {
         <div className="total-card">
           <div className="total-card-head">
             <div><p>Total portfolio</p><strong>{formatChf(data.summary.portfolioValueChf)}</strong><span>Holdings + available cash</span></div>
-            <div className="quote-status"><RefreshCw aria-hidden="true" /><span>{data.quoteProviderLabel}<small>Updated {quoteLabel}</small></span></div>
+            <LivePriceStatus providerLabel={data.quoteProviderLabel} updatedLabel={quoteLabel} />
           </div>
           <div className="metric-grid">
             <div><span>Today</span><strong className={toneForValue(data.summary.todayPnlChf)}>{formatChf(data.summary.todayPnlChf, { signed: true })}</strong><small className={toneForValue(data.summary.todayReturnPercent)}>{formatPercent(data.summary.todayReturnPercent, { signed: true })}</small></div>

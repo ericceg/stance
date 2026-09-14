@@ -1,12 +1,24 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { readIncludeClosedChartPositions, subscribeToChartPreferences, writeIncludeClosedChartPositions } from "@/lib/preferences";
+import {
+  readAutoRefreshPrices,
+  readIncludeClosedChartPositions,
+  subscribeToChartPreferences,
+  subscribeToPricePreferences,
+  writeAutoRefreshPrices,
+  writeIncludeClosedChartPositions,
+} from "@/lib/preferences";
 
 export function SettingsPreferences() {
   const includeClosedPositions = useSyncExternalStore(
     subscribeToChartPreferences,
     readIncludeClosedChartPositions,
+    () => false,
+  );
+  const autoRefreshPrices = useSyncExternalStore(
+    subscribeToPricePreferences,
+    readAutoRefreshPrices,
     () => false,
   );
 
@@ -31,6 +43,23 @@ export function SettingsPreferences() {
           />
           <span aria-hidden="true"><i /></span>
           <small>{includeClosedPositions ? "On" : "Off"}</small>
+        </label>
+      </div>
+      <div className="preference-row">
+        <div className="preference-copy">
+          <strong>Auto-refresh market prices</strong>
+          <p>Refresh current prices and P&amp;L every minute while the portfolio overview is open. Automatic refreshes do not add performance-chart snapshots.</p>
+        </div>
+        <label className="preference-switch">
+          <input
+            aria-label="Auto-refresh market prices"
+            checked={autoRefreshPrices}
+            className="visually-hidden"
+            onChange={(event) => writeAutoRefreshPrices(event.target.checked)}
+            type="checkbox"
+          />
+          <span aria-hidden="true"><i /></span>
+          <small>{autoRefreshPrices ? "On" : "Off"}</small>
         </label>
       </div>
     </div>
